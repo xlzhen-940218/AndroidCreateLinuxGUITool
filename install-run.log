@@ -1,0 +1,456 @@
+设备: 19011FDF600DQR
+配置: 桌面=xfce 国内源=true 语言=zh_CN.UTF-8 密码=linux 分辨率=1920x1080
+[preparing] 正在启动 Linux Terminal 应用...
+[preparing] 正在探测虚拟机共享存储...
+[preparing] 脚本已推送至 /storage/emulated/0/acl_install.sh
+[running] 正在虚拟机终端中执行安装脚本...
+▶ 检查虚拟机环境
+=== Android Linux 桌面环境安装 ===
+日志文件: /mnt/shared/acl_install.log
+用户: droid  (sudo='sudo -n')
+▶ 识别 Debian 版本
+系统: Debian 13 (suite=trixie)
+架构: aarch64   内核: 6.12.93-android16-6-g3a7d1771d492-ab16496487-4k
+▶ 切换国内软件源
+正在切换到国内镜像源 (清华 TUNA)...
+国内源已生效: https://mirrors.tuna.tsinghua.edu.cn/debian (trixie)
+▶ 更新软件包
+正在更新软件包列表...
+Get:1 https://mirrors.tuna.tsinghua.edu.cn/debian trixie InRelease [140 kB]
+Get:2 https://mirrors.tuna.tsinghua.edu.cn/debian trixie-updates InRelease [47.3 kB]
+Get:3 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security InRelease [43.4 kB]
+Get:4 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 Packages [9614 kB]
+Get:5 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main Translation-en [6486 kB]
+Get:6 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/contrib arm64 Packages [48.4 kB]
+Get:7 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/contrib Translation-en [49.6 kB]
+Get:8 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/non-free arm64 Packages [74.4 kB]
+Get:9 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/non-free Translation-en [67.1 kB]
+Get:10 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/non-free-firmware arm64 Packages [6484 B]
+Get:11 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/non-free-firmware Translation-en [4704 B]
+Get:12 https://mirrors.tuna.tsinghua.edu.cn/debian trixie-updates/main arm64 Packages [1108 B]
+Get:13 https://mirrors.tuna.tsinghua.edu.cn/debian trixie-updates/main Translation-en [1032 B]
+Get:14 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 Packages [302 kB]
+Get:15 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main Translation-en [182 kB]
+Get:16 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/contrib arm64 Packages [3152 B]
+Get:17 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/contrib Translation-en [2564 B]
+Get:18 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/non-free-firmware Translation-en [352 B]
+Fetched 17.1 MB in 41s (421 kB/s)
+Reading package lists...
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+正在升级已安装的软件包...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+The following packages were automatically installed and are no longer required:
+  dmsetup gettext-base libdevmapper1.02.1 libeatmydata1 libefiboot1t64
+  libefivar1t64 libwtmpdb0 mokutil runit-helper
+Use 'sudo apt autoremove' to remove them.
+The following packages will be upgraded:
+  apt apt-utils bind9-host bind9-libs ca-certificates curl libapt-pkg7.0
+  libbrotli1 libcurl4t64 libexpat1 libjxl0.11 liblzma5 librsvg2-2 tzdata vim
+  vim-common vim-runtime vim-tiny xz-utils zlib1g
+20 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Need to get 18.6 MB of archives.
+After this operation, 12.3 kB of additional disk space will be used.
+Get:1 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 liblzma5 arm64 5.8.1-1+deb13u2 [303 kB]
+Get:2 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 zlib1g arm64 1:1.3.dfsg+really1.3.1-1+deb13u1 [85.0 kB]
+Get:3 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 libapt-pkg7.0 arm64 3.0.4 [978 kB]
+Get:4 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 apt arm64 3.0.4 [1363 kB]
+Get:5 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 apt-utils arm64 3.0.4 [316 kB]
+Get:6 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 libexpat1 arm64 2.9.0-1~deb13u1 [114 kB]
+Get:7 https://mirrors.tuna.tsinghua.edu.cn/debian trixie-updates/main arm64 tzdata all 2026f-0+deb13u1 [268 kB]
+Get:8 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 vim arm64 2:9.1.1230-2+deb13u2 [1528 kB]
+Get:9 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 vim-common all 2:9.1.1230-2+deb13u2 [421 kB]
+Get:10 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 vim-tiny arm64 2:9.1.1230-2+deb13u2 [708 kB]
+Get:11 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 vim-runtime all 2:9.1.1230-2+deb13u2 [7129 kB]
+Get:12 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 bind9-host arm64 1:9.20.30-1~deb13u1 [53.9 kB]
+Get:13 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 bind9-libs arm64 1:9.20.30-1~deb13u1 [1112 kB]
+Get:14 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 ca-certificates all 20250419+deb13u1 [161 kB]
+Get:15 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 xz-utils arm64 5.8.1-1+deb13u2 [658 kB]
+Get:16 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 libbrotli1 arm64 1.1.0-2+deb13u1 [294 kB]
+Get:17 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 curl arm64 8.14.1-2+deb13u7 [263 kB]
+Get:18 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 libcurl4t64 arm64 8.14.1-2+deb13u7 [361 kB]
+Get:19 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 libjxl0.11 arm64 0.11.2-0.1~deb13u3 [887 kB]
+Get:20 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security/main arm64 librsvg2-2 arm64 2.60.0+dfsg-1+deb13u1 [1584 kB]
+apt-listchanges: Reading changelogs...
+N: Ignoring file 'debian.sources.bak.acl' in directory '/etc/apt/sources.list.d/' as it has an invalid filename extension
+Preconfiguring packages ...
+Fetched 18.6 MB in 7s (2822 kB/s)
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24075 files and directories currently installed.)
+Preparing to unpack .../liblzma5_5.8.1-1+deb13u2_arm64.deb ...
+Unpacking liblzma5:arm64 (5.8.1-1+deb13u2) over (5.8.1-1+deb13u1) ...
+Setting up liblzma5:arm64 (5.8.1-1+deb13u2) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24075 files and directories currently installed.)
+Preparing to unpack .../zlib1g_1%3a1.3.dfsg+really1.3.1-1+deb13u1_arm64.deb ...
+Unpacking zlib1g:arm64 (1:1.3.dfsg+really1.3.1-1+deb13u1) over (1:1.3.dfsg+really1.3.1-1+b1) ...
+Setting up zlib1g:arm64 (1:1.3.dfsg+really1.3.1-1+deb13u1) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24074 files and directories currently installed.)
+Preparing to unpack .../libapt-pkg7.0_3.0.4_arm64.deb ...
+Unpacking libapt-pkg7.0:arm64 (3.0.4) over (3.0.3) ...
+Setting up libapt-pkg7.0:arm64 (3.0.4) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24074 files and directories currently installed.)
+Preparing to unpack .../archives/apt_3.0.4_arm64.deb ...
+Unpacking apt (3.0.4) over (3.0.3) ...
+Setting up apt (3.0.4) ...
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24074 files and directories currently installed.)
+Preparing to unpack .../00-apt-utils_3.0.4_arm64.deb ...
+Unpacking apt-utils (3.0.4) over (3.0.3) ...
+Preparing to unpack .../01-libexpat1_2.9.0-1~deb13u1_arm64.deb ...
+Unpacking libexpat1:arm64 (2.9.0-1~deb13u1) over (2.8.3-1~deb13u1) ...
+Preparing to unpack .../02-tzdata_2026f-0+deb13u1_all.deb ...
+Unpacking tzdata (2026f-0+deb13u1) over (2026c-0+deb13u1) ...
+Preparing to unpack .../03-vim_2%3a9.1.1230-2+deb13u2_arm64.deb ...
+Unpacking vim (2:9.1.1230-2+deb13u2) over (2:9.1.1230-2) ...
+Preparing to unpack .../04-vim-common_2%3a9.1.1230-2+deb13u2_all.deb ...
+Unpacking vim-common (2:9.1.1230-2+deb13u2) over (2:9.1.1230-2) ...
+Preparing to unpack .../05-vim-tiny_2%3a9.1.1230-2+deb13u2_arm64.deb ...
+Unpacking vim-tiny (2:9.1.1230-2+deb13u2) over (2:9.1.1230-2) ...
+Preparing to unpack .../06-vim-runtime_2%3a9.1.1230-2+deb13u2_all.deb ...
+Unpacking vim-runtime (2:9.1.1230-2+deb13u2) over (2:9.1.1230-2) ...
+Preparing to unpack .../07-bind9-host_1%3a9.20.30-1~deb13u1_arm64.deb ...
+Unpacking bind9-host (1:9.20.30-1~deb13u1) over (1:9.20.29-1~deb13u1) ...
+Preparing to unpack .../08-bind9-libs_1%3a9.20.30-1~deb13u1_arm64.deb ...
+Unpacking bind9-libs:arm64 (1:9.20.30-1~deb13u1) over (1:9.20.29-1~deb13u1) ...
+Preparing to unpack .../09-ca-certificates_20250419+deb13u1_all.deb ...
+Unpacking ca-certificates (20250419+deb13u1) over (20250419) ...
+Preparing to unpack .../10-xz-utils_5.8.1-1+deb13u2_arm64.deb ...
+Unpacking xz-utils (5.8.1-1+deb13u2) over (5.8.1-1+deb13u1) ...
+Preparing to unpack .../11-libbrotli1_1.1.0-2+deb13u1_arm64.deb ...
+Unpacking libbrotli1:arm64 (1.1.0-2+deb13u1) over (1.1.0-2+b7) ...
+Preparing to unpack .../12-curl_8.14.1-2+deb13u7_arm64.deb ...
+Unpacking curl (8.14.1-2+deb13u7) over (8.14.1-2+deb13u5) ...
+Preparing to unpack .../13-libcurl4t64_8.14.1-2+deb13u7_arm64.deb ...
+Unpacking libcurl4t64:arm64 (8.14.1-2+deb13u7) over (8.14.1-2+deb13u5) ...
+Preparing to unpack .../14-libjxl0.11_0.11.2-0.1~deb13u3_arm64.deb ...
+Unpacking libjxl0.11:arm64 (0.11.2-0.1~deb13u3) over (0.11.2-0.1~deb13u2) ...
+Preparing to unpack .../15-librsvg2-2_2.60.0+dfsg-1+deb13u1_arm64.deb ...
+Unpacking librsvg2-2:arm64 (2.60.0+dfsg-1+deb13u1) over (2.60.0+dfsg-1) ...
+Setting up libexpat1:arm64 (2.9.0-1~deb13u1) ...
+Setting up apt-utils (3.0.4) ...
+Setting up bind9-libs:arm64 (1:9.20.30-1~deb13u1) ...
+Setting up libbrotli1:arm64 (1.1.0-2+deb13u1) ...
+Setting up librsvg2-2:arm64 (2.60.0+dfsg-1+deb13u1) ...
+Setting up tzdata (2026f-0+deb13u1) ...
+Current default time zone: 'Etc/UTC'
+Local time is now:      Thu Nov 12 09:51:13 UTC 2026.
+Universal Time is now:  Thu Nov 12 09:51:13 UTC 2026.
+Run 'dpkg-reconfigure tzdata' if you wish to change it.
+Setting up ca-certificates (20250419+deb13u1) ...
+Updating certificates in /etc/ssl/certs...
+rehash: warning: skipping ca-certificates.crt, it does not contain exactly one certificate or CRL
+0 added, 2 removed; done.
+Setting up vim-common (2:9.1.1230-2+deb13u2) ...
+Setting up xz-utils (5.8.1-1+deb13u2) ...
+Setting up vim-runtime (2:9.1.1230-2+deb13u2) ...
+Setting up bind9-host (1:9.20.30-1~deb13u1) ...
+Setting up libjxl0.11:arm64 (0.11.2-0.1~deb13u3) ...
+Setting up vim (2:9.1.1230-2+deb13u2) ...
+Setting up libcurl4t64:arm64 (8.14.1-2+deb13u7) ...
+Setting up vim-tiny (2:9.1.1230-2+deb13u2) ...
+Setting up curl (8.14.1-2+deb13u7) ...
+Processing triggers for man-db (2.13.1-1) ...
+Processing triggers for libc-bin (2.41-12+deb13u4) ...
+Processing triggers for ca-certificates (20250419+deb13u1) ...
+Updating certificates in /etc/ssl/certs...
+0 added, 0 removed; done.
+Running hooks in /etc/ca-certificates/update.d...
+done.
+▶ 配置语言与字体
+正在配置系统语言 (zh_CN.UTF-8) 与中文字体...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+locales is already the newest version (2.41-12+deb13u4).
+locales set to manually installed.
+The following packages were automatically installed and are no longer required:
+  dmsetup gettext-base libdevmapper1.02.1 libeatmydata1 libefiboot1t64
+  libefivar1t64 libwtmpdb0 mokutil runit-helper
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+  zh_CN.UTF-8... done
+Generation complete.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  dmsetup gettext-base libdevmapper1.02.1 libeatmydata1 libefiboot1t64
+  libefivar1t64 libwtmpdb0 mokutil runit-helper
+Use 'sudo apt autoremove' to remove them.
+Suggested packages:
+  fonts-noto-cjk-extra
+The following NEW packages will be installed:
+  fonts-noto-cjk fonts-wqy-microhei fonts-wqy-zenhei
+0 upgraded, 3 newly installed, 0 to remove and 0 not upgraded.
+Need to get 65.8 MB of archives.
+After this operation, 115 MB of additional disk space will be used.
+Get:1 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 fonts-noto-cjk all 1:20240730+repack1-1 [56.7 MB]
+Get:2 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 fonts-wqy-microhei all 0.2.0-beta-4 [1604 kB]
+Get:3 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 fonts-wqy-zenhei all 0.9.45-8 [7479 kB]
+N: Ignoring file 'debian.sources.bak.acl' in directory '/etc/apt/sources.list.d/' as it has an invalid filename extension
+Fetched 65.8 MB in 41s (1623 kB/s)
+Selecting previously unselected package fonts-noto-cjk.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24071 files and directories currently installed.)
+Preparing to unpack .../fonts-noto-cjk_1%3a20240730+repack1-1_all.deb ...
+Unpacking fonts-noto-cjk (1:20240730+repack1-1) ...
+Selecting previously unselected package fonts-wqy-microhei.
+Preparing to unpack .../fonts-wqy-microhei_0.2.0-beta-4_all.deb ...
+Unpacking fonts-wqy-microhei (0.2.0-beta-4) ...
+Selecting previously unselected package fonts-wqy-zenhei.
+Preparing to unpack .../fonts-wqy-zenhei_0.9.45-8_all.deb ...
+Unpacking fonts-wqy-zenhei (0.9.45-8) ...
+Setting up fonts-noto-cjk (1:20240730+repack1-1) ...
+Setting up fonts-wqy-zenhei (0.9.45-8) ...
+Setting up fonts-wqy-microhei (0.2.0-beta-4) ...
+Processing triggers for fontconfig (2.15.0-2.3) ...
+▶ 应用网络补丁
+正在植入 Android 虚拟机网络桥接补丁...
+▶ 配置 SSH 服务
+正在配置 SSH 服务 (端口 10022)...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  dmsetup gettext-base libdevmapper1.02.1 libeatmydata1 libefiboot1t64
+  libefivar1t64 mokutil
+Use 'sudo apt autoremove' to remove them.
+The following additional packages will be installed:
+  libxmuu1 ncurses-term xauth
+Suggested packages:
+  molly-guard monkeysphere ssh-askpass ufw
+The following NEW packages will be installed:
+  libxmuu1 ncurses-term openssh-server xauth
+0 upgraded, 4 newly installed, 0 to remove and 0 not upgraded.
+Need to get 1130 kB of archives.
+After this operation, 8247 kB of additional disk space will be used.
+Get:1 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 openssh-server arm64 1:10.0p1-7+deb13u4 [555 kB]
+Get:2 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 ncurses-term all 6.5+20250216-2 [518 kB]
+Get:3 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 libxmuu1 arm64 2:1.1.3-3+b4 [22.0 kB]
+Get:4 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 xauth arm64 1:1.1.2-1.1 [35.4 kB]
+N: Ignoring file 'debian.sources.bak.acl' in directory '/etc/apt/sources.list.d/' as it has an invalid filename extension
+Preconfiguring packages ...
+Fetched 1130 kB in 1s (1170 kB/s)
+Selecting previously unselected package openssh-server.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 24107 files and directories currently installed.)
+Preparing to unpack .../openssh-server_1%3a10.0p1-7+deb13u4_arm64.deb ...
+Unpacking openssh-server (1:10.0p1-7+deb13u4) ...
+Selecting previously unselected package ncurses-term.
+Preparing to unpack .../ncurses-term_6.5+20250216-2_all.deb ...
+Unpacking ncurses-term (6.5+20250216-2) ...
+Selecting previously unselected package libxmuu1:arm64.
+Preparing to unpack .../libxmuu1_2%3a1.1.3-3+b4_arm64.deb ...
+Unpacking libxmuu1:arm64 (2:1.1.3-3+b4) ...
+Selecting previously unselected package xauth.
+Preparing to unpack .../xauth_1%3a1.1.2-1.1_arm64.deb ...
+Unpacking xauth (1:1.1.2-1.1) ...
+Setting up openssh-server (1:10.0p1-7+deb13u4) ...
+Creating config file /etc/ssh/sshd_config with new version
+Creating SSH2 RSA key; this may take some time ...
+3072 SHA256:47x8bVW3irssGrl3LfVVLtRJedHPXJfoWp9j/5oRUxg root@debian (RSA)
+Creating SSH2 ECDSA key; this may take some time ...
+256 SHA256:1HFwwEFXJMKhAWJnkKq0Lcwg2g9JjNnscg74cX7m3fw root@debian (ECDSA)
+Creating SSH2 ED25519 key; this may take some time ...
+256 SHA256:FSy8ZvOXgZGdTwyxHgwdtqTwIjfKyy4x2bBA920RdLE root@debian (ED25519)
+Creating user 'sshd' (sshd user) with UID 989 and GID 65534.
+Created symlink '/etc/systemd/system/sshd.service' → '/usr/lib/systemd/system/ssh.service'.
+Created symlink '/etc/systemd/system/multi-user.target.wants/ssh.service' → '/usr/lib/systemd/system/ssh.service'.
+ssh.socket is a disabled or a static unit, not starting it.
+Created symlink '/etc/systemd/system/ssh.service.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+Created symlink '/etc/systemd/system/sshd.service.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+Created symlink '/etc/systemd/system/sshd@.service.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+Created symlink '/etc/systemd/system/ssh.socket.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+Setting up libxmuu1:arm64 (2:1.1.3-3+b4) ...
+Setting up ncurses-term (6.5+20250216-2) ...
+Setting up xauth (1:1.1.2-1.1) ...
+Processing triggers for man-db (2.13.1-1) ...
+Processing triggers for libc-bin (2.41-12+deb13u4) ...
+▶ 安装桌面环境
+正在安装 XFCE 桌面环境，这可能需要较长时间...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages were automatically installed and are no longer required:
+  dmsetup gettext-base libdevmapper1.02.1 libeatmydata1 libefiboot1t64
+  libefivar1t64 mokutil
+Use 'sudo apt autoremove' to remove them.
+The following additional packages will be installed:
+  dmidecode laptop-detect liblocale-gettext-perl tasksel-data
+The following NEW packages will be installed:
+  dmidecode laptop-detect liblocale-gettext-perl tasksel tasksel-data
+0 upgraded, 5 newly installed, 0 to remove and 0 not upgraded.
+Need to get 147 kB of archives.
+After this operation, 922 kB of additional disk space will be used.
+Get:1 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 liblocale-gettext-perl arm64 1.07-7+b1 [15.2 kB]
+Get:2 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 tasksel-data all 3.81 [18.0 kB]
+Get:3 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 tasksel all 3.81 [51.9 kB]
+Get:4 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 dmidecode arm64 3.6-2 [56.9 kB]
+Get:5 https://mirrors.tuna.tsinghua.edu.cn/debian trixie/main arm64 laptop-detect all 0.16+nmu1 [5044 B]
+N: Ignoring file 'debian.sources.bak.acl' in directory '/etc/apt/sources.list.d/' as it has an invalid filename extension
+Preconfiguring packages ...
+Fetched 147 kB in 1s (271 kB/s)
+Selecting previously unselected package liblocale-gettext-perl.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 27039 files and directories currently installed.)
+Preparing to unpack .../liblocale-gettext-perl_1.07-7+b1_arm64.deb ...
+Unpacking liblocale-gettext-perl (1.07-7+b1) ...
+Selecting previously unselected package tasksel-data.
+Preparing to unpack .../tasksel-data_3.81_all.deb ...
+Unpacking tasksel-data (3.81) ...
+Selecting previously unselected package tasksel.
+Preparing to unpack .../archives/tasksel_3.81_all.deb ...
+Unpacking tasksel (3.81) ...
+Selecting previously unselected package dmidecode.
+Preparing to unpack .../dmidecode_3.6-2_arm64.deb ...
+Unpacking dmidecode (3.6-2) ...
+Selecting previously unselected package laptop-detect.
+Preparing to unpack .../laptop-detect_0.16+nmu1_all.deb ...
+Unpacking laptop-detect (0.16+nmu1) ...
+Setting up dmidecode (3.6-2) ...
+Setting up liblocale-gettext-perl (1.07-7+b1) ...
+Setting up laptop-detect (0.16+nmu1) ...
+Setting up tasksel (3.81) ...
+Setting up tasksel-data (3.81) ...
+Processing triggers for man-db (2.13.1-1) ...
+[?1049h[22;0;0t[1;21r[4l[?25l(B[m[37m[40m[1;21r[H[2J[1;1H[97m[44m[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K
+[K[1;1H[37mPackage configuration[7;1H[30m[47m────┤ [31mInstalling packages[30m ├───────────────────[8;1H[K
+[K
+[K
+[K[12;24H[97m[44m0%
+[30m[47m[K
+──────────────────────────────────────────────[15;1H[97m[40m[K[12;22H[8;1H[30m[47m.[12;22H[8;1Hle 1 of 830[12;22H[8;4H2[12;22H[8;4H3[12;22H[8;4H4[12;22H[8;4H5[12;22H[8;4H6[12;22H[8;4H7[12;22H[8;4H8[12;22H[8;4H9[12;22H[8;4H10 of 830[12;22H[8;5H1[12;22H[8;5H2[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;5H5[12;22H[8;5H6[12;22H[8;14H(26min 29s remaining)[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;5H7[12;22H[8;22H1[12;22H[8;16H2min 17[12;22H[8;22H6[12;22H[8;5H8[12;22H[8;5H9[16C5[12;22H[8;4H20[12;22H[8;5H1[12;22H[8;22H4[12;22H[8;5H2[12;22H[8;5H3[16C3[12;22H[8;5H4[16C2[12;22H[8;5H5[12;22H[8;5H6[12;22H[8;22H1[12;22H[8;21H9s remaining)[K[12;22H[8;21H8[12;22H[8;5H7[12;22H[8;5H8[9C14min 9[12;22H[8;21H8[12;22H[8;21H7[12;22H[8;21H6[12;22H[8;21H5[12;22H[8;21H4[12;22H[8;21H3[12;22H[8;21H2[12;22H[8;21H1[12;22H[8;15H9min 22[12;22H[8;21H1[12;22H[8;21H0[12;22H[8;5H9[12;22H[8;4H30[12;22H[8;20H19[12;22H[8;5H1[12;22H[8;5H2[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;5H5[12;22H[8;5H6[12;22H[8;5H7[15C8[12;22H[8;5H8[12;22H[8;15H12min 0[12;22H[8;5H9[12;22H[8;4H40[12;22H[8;16H1min 59s remaining)[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H7min 3[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H29[12;22H[8;22H8[12;22H[8;16H1[5C9[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;15H8min 41s remaining)[K[12;22H[8;21H0[12;22H[8;20H39[12;22H[8;21H8[12;22H[8;21H7[12;22H[8;15H10min 42s remaining)[12;22H[8;22H1[12;22H[8;22H0[12;22H[12;24H[97m[44m1[12;22H[8;21H[30m[47m39[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;5H1[12;22H[8;5H2[10C2min 21[12;22H[8;5H3[12;22H[8;5H4[16C0[12;22H[8;5H5[12;22H[8;21H19[12;22H[8;5H6[12;22H[8;5H7[12;22H[8;5H8[16C8[12;22H[8;5H9[12;22H[8;4H50[12;22H[8;5H1[12;22H[8;5H2[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;5H5[16C7[12;22H[8;5H6[12;22H[8;5H7[12;22H[8;22H6[12;22H[8;5H8[12;22H[8;16H3[5C7[12;22H[8;5H9[12;22H[8;4H60[12;22H[8;5H1[16C6[12;22H[8;5H2[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;5H5[12;22H[8;22H5[12;22H[8;5H6[12;22H[8;5H7[12;22H[8;5H8[12;22H[8;5H9[12;22H[8;4H70[12;22H[8;5H1[12;22H[8;22H4[12;22H[8;5H2[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;5H5[12;22H[8;5H6[12;22H[8;5H7[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;16H2min 5s remaining)[K[12;22H[8;21H4[12;22H[8;5H8[12;22H[8;21H3[12;22H[8;21H2[12;22H[8;21H1[12;22H[8;21H0[12;22H[8;5H9[12;22H[8;16H3min 53s remaining)[12;22H[8;4H80[12;22H[8;5H1[12;22H[8;5H2[16C2[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;5H5[16C1[12;22H[8;5H6[12;22H[8;5H7[12;22H[8;5H8[12;22H[8;5H9[12;22H[8;22H0[12;22H[8;15H24min 49[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;21H13[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H9s remaining)[K[12;22H[8;21H8[12;22H[8;4H90[15C7[12;22H[8;16H1min 30s remaining)[12;22H[8;21H29[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;5H1[12;22H[8;5H2[12;22H[8;22H3[12;22H[8;5H3[12;22H[8;5H4[12;22H[8;22H2[12;22H[8;5H5[12;22H[8;22H1[12;22H[8;5H6[12;22H[8;15H14[5Cs remaining)[K[12;22H[8;5H7[12;22H[8;5H8[12;22H[8;21H1[12;22H[8;5H9[12;22H[8;4H100 of 830 (14min 1s remaining)[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;22H0[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;17H3min 59s remaining)[12;22H[8;16H21min 47[12;22H[8;23H6[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;23H5[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;23H4[12;22H[8;6H9[12;22H[8;5H10[16C3[12;22H[8;6H1[12;22H[8;6H2[16C2[12;22H[8;23H1[12;22H[8;22H24[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;6H3[12;22H[8;23H0[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;22H19[12;22H[8;6H7[12;22H[8;6H8[10C3min 42[12;22H[8;6H9[12;22H[8;23H1[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;6H2[16C0[12;22H[8;22H39[12;22H[8;23H8[12;22H[12;24H[97m[44m2[12;22H[8;6H[30m[47m3[12;22H[8;23H7[12;22H[8;6H4[10C5min 7s remaining)[K[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;17H0min 31s remaining)[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;16H18min 31[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;16H24min 35[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;17H7min 23[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H19[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;17H4min 24[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H19[12;22H[8;17H3min 41[12;22H[8;23H0[12;22H[8;22H39[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;17H9min 42[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H39[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;17H4min 20[12;22H[8;22H19[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;16H19min 40[12;22H[8;22H39[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;16H21[5C7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;16H19min 47[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H39[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;17H1min 13[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;6H5[12;22H[8;22H9s remaining)[K[12;22H[8;17H5min 39s remaining)[12;22H[8;6H6[12;22H[8;23H8[12;22H[8;6H7[12;22H[8;6H8[16C7[12;22H[8;6H9[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;5H30[12;22H[8;6H1[16C4[12;22H[8;17H8min 26[12;22H[8;6H2[16C5[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;6H6[12;22H[8;16H22[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H19[12;22H[8;23H8[12;22H[8;17H7[12;22H[8;23H7[12;22H[8;6H7[16C6[12;22H[8;23H5[12;22H[8;6H8[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;16H30min 49[12;22H[8;6H9[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;5H40[16C5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H0[12;22H[8;22H39[12;22H[8;16H16min 16[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[12;24H[97m[44m3[12;22H[8;23H[30m[47m1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;17H1min 5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;6H1[15C2[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[15C1[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[15C0[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H50[10C0min 59s remaining)[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;16H8min 14s remaining)[K[12;22H[8;22H3[12;22H[8;6H3[15C2[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;22H1[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[15C0[12;22H[8;5H60[12;22H[8;6H1[12;22H[8;21H9s remaining)[K[12;22H[8;16H10min 12s remaining)[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;17H5min 15s remaining)[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;17H2min 32s remaining)[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;6H2[12;22H[8;22H29[12;22H[8;17H8min 4s remaining)[K[12;22H[8;22H3[12;22H[8;6H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;17H7min 59s remaining)[12;22H[8;6H4[12;22H[8;23H8[12;22H[8;17H8[5C1[12;22H[8;23H0[12;22H[8;22H49[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;6H5[12;22H[8;6H6[16C5[12;22H[8;22H59[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;16H26min 19[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;16H14min 57s remaining)[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;6H9[12;22H[8;23H0[12;22H[8;5H70[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[10C3min 19[12;22H[8;23H8[12;22H[8;6H4[12;22H[8;6H5[16C7[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H80[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;6H1[12;22H[8;6H2[9C21min 33[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;6H3[16C7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;16H14min 1s remaining)[K[12;22H[8;22H0[12;22H[8;17H3min 59s remaining)[12;22H[8;23H8[12;22H[8;6H4[12;22H[8;6H5[12;22H[12;24H[97m[44m4[12;22H[8;6H[30m[47m6[16C7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;17H2min 1[12;22H[8;23H3[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;23H2[12;22H[8;6H9[12;22H[8;5H90[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[10C3min 7[12;22H[8;6H6[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;6H7[15C4[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;4H200[12;22H[8;6H1[12;22H[8;22H3[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;22H2[12;22H[8;6H4[12;22H[8;17H6min 31s remaining)[12;22H[8;23H0[12;22H[8;6H5[15C29[12;22H[8;6H6[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;6H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;17H7min 0s remaining)[K[12;22H[8;17H6min 59s remaining)[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;6H8[16C6[12;22H[8;16H25min 11[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;17H0min 8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;16H15min 31s remaining)[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;6H9[12;22H[8;23H7[12;22H[8;5H10[12;22H[8;6H1[12;22H[8;23H6[12;22H[8;6H2[16C5[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;23H4[12;22H[8;17H3min 30[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;17H4min 11[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;17H9min 25s remaining)[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;16H23min 1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;17H6min 24s remaining)[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H19[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;16H19min 20[12;22H[8;22H19[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;6H7[16C5[12;22H[8;6H8[12;22H[8;23H4[12;22H[8;6H9[16C3[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;22H8[12;22H[8;16H9min 3s remaining)[K[12;22H[8;6H3[14C2[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;21H1[12;22H[8;21H0[12;22H[8;16H8min 59s remaining)[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;16H7min 41[12;22H[8;22H0[12;22H[8;21H39[12;22H[12;24H[97m[44m5[12;22H[8;22H[30m[47m8[12;22H[8;22H7[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;22H6[12;22H[8;5H30[9C9min 18[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;22H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H40[12;22H[8;6H1[12;22H[8;6H2[15C6[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;5H50[15C2[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[15C1[12;22H[8;6H4[12;22H[8;6H5[9C7[5C8[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;16H6min 40[12;22H[8;21H39[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H10min 32s remaining)[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;17H3[5C5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;16H21min 1s remaining)[K[12;22H[8;22H0[12;22H[8;17H0min 59s remaining)[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;16H11min 38[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;16H6min 31s remaining)[K[12;22H[8;22H0[12;22H[8;21H29[12;22H[8;22H8[12;22H[8;6H8[15C7[12;22H[8;6H9[12;22H[8;5H60[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[15C6[12;22H[8;6H7[12;22H[8;16H7min 49[12;22H[8;22H8[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;22H7[12;22H[8;5H70[12;22H[8;22H6[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[15C5[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;22H4[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;16H8min 0s remaining)[K[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H80[12;22H[8;6H1[12;22H[12;24H[97m[44m6[12;22H[8;16H[30m[47m7min 59s remaining)[12;22H[8;6H2[12;22H[8;22H8[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;16H5min 18[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;16H7min 32[12;22H[8;22H1[12;22H[8;6H5[15C0[12;22H[8;6H6[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H90[12;22H[8;6H1[14C29[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;22H8[12;22H[8;6H4[12;22H[8;6H5[15C7[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;16H9min 4[12;22H[8;22H6[12;22H[8;6H9[12;22H[8;4H300[12;22H[8;22H5[12;22H[8;6H1[12;22H[8;22H4[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H39[12;22H[8;16H7min 9s remaining)[K[12;22H[8;21H8[12;22H[8;21H7[12;22H[8;21H6[12;22H[8;21H5[12;22H[8;21H4[12;22H[8;21H3[12;22H[8;16H6min 13s remaining)[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;6H5[15C0[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H10[14C9s remaining)[K[12;22H[8;6H1[12;22H[8;21H8[12;22H[8;21H7[12;22H[8;21H6[12;22H[8;16H4min 50s remaining)[12;22H[8;21H49[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;6H2[15C4[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;22H3[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[9C3min 58[12;22H[8;6H9[12;22H[8;5H30[12;22H[8;6H1[15C7[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[12;24H[97m[44m7[12;22H[8;6H[30m[47m5[12;22H[8;22H6[12;22H[8;6H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;6H7[15C3[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H40[12;22H[8;6H1[12;22H[8;6H2[9C5min 1s remaining)[K[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[14C0[12;22H[8;6H9[12;22H[8;16H4min 59s remaining)[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;16H3min 37[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;16H5[5C8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;16H8min 6s remaining)[K[12;22H[8;21H5[12;22H[8;21H4[12;22H[8;16H14min 58s remaining)[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;17H7min 33[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;16H24min 41[12;22H[8;23H0[12;22H[8;22H39[12;22H[8;23H8[12;22H[8;16H43min 8s remaining)[K[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;17H0min 43s remaining)[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H39[12;22H[8;23H8[12;22H[8;17H1min 44[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;16H55min 7s remaining)[K[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;16H44min 0[12;22H[8;17H3min 59s remaining)[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;16H59min 6s remaining)[K[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;16H1h 20min 54s remaining)[12;22H[8;26H3[12;22H[8;26H2[12;22H[8;26H1[12;22H[8;26H0[12;22H[8;25H49[12;22H[8;19H49min 33[12;22H[8;26H1[12;22H[8;26H0[12;22H[8;25H29[12;22H[8;26H8[12;22H[8;26H7[12;22H[8;19H25min 6s remaining)[K[12;22H[8;25H5[12;22H[8;25H4[12;22H[8;25H3[12;22H[8;25H2[12;22H[8;25H1[12;22H[8;25H0[12;22H[8;20H0min 33s remaining)[12;22H[8;26H2[12;22H[8;16H8h 3[5C21[12;22H[8;25H19[12;22H[8;16H1d 1h 32min 30s remaining)[12;22H[8;28H18[12;22H[8;28H5s remaining)[K[12;22H[8;23H0[5C3s remaining)[12;22H[8;17Hh 35min 31s remaining)[K[12;22H[8;25H29[12;22H[8;26H8[12;22H[8;26H7[12;22H[8;19H57min 31[12;22H[8;26H0[12;22H[8;25H25[12;22H[8;16H2h 7min 18s remaining)[K[12;22H[8;25H2[12;22H[8;25H0[12;22H[8;24H9s remaining)[K[12;22H[8;24H8[12;22H[8;24H7[12;22H[8;24H6[12;22H[8;24H5[12;22H[8;24H4[12;22H[8;24H3[12;22H[8;16H50min 45s remaining)[K[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;17H6min 15[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H9s remaining)[K[12;22H[8;17H0min 33s remaining)[12;22H[8;23H2[12;22H[8;23H1[12;22H[8;23H0[12;22H[8;22H29[12;22H[8;16H1h 3min 4s remaining)[12;22H[8;24H3[12;22H[8;24H2[12;22H[8;24H1[12;22H[8;24H0[12;22H[8;19H2min 59s remaining)[12;22H[8;25H8[12;22H[8;19H0min 24[12;22H[8;25H3[12;22H[8;25H2[12;22H[8;25H1[12;22H[8;19H28min 52s remaining)[12;22H[8;26H1[12;22H[8;26H0[12;22H[8;25H49[12;22H[8;26H8[12;22H[8;26H7[12;22H[8;26H6[12;22H[8;19H15min 2[12;22H[8;26H5[12;22H[8;26H4[12;22H[8;26H3[12;22H[8;26H2[12;22H[8;26H1[12;22H[8;26H0[12;22H[8;25H18[12;22H[8;16H50min 9s remaining)[K[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H1h 34min 2s remaining)[12;22H[8;25H1[12;22H[8;25H0[12;22H[8;20H3min 59s remaining)[12;22H[8;26H8[12;22H[8;26H7[12;22H[8;26H6[12;22H[8;26H5[12;22H[8;19H8min 14s remaining)[K[12;22H[8;25H3[12;22H[8;25H2[12;22H[8;25H1[12;22H[8;25H0[12;22H[8;24H9s remaining)[K[12;22H[8;24H8[12;22H[8;24H7[12;22H[8;24H6[12;22H[8;24H5[12;22H[8;16H46min 48s remaining)[K[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;16H1h 47min 1s remaining)[12;22H[8;20H6min 59s remaining)[12;22H[8;26H7[12;22H[8;26H5[12;22H[8;26H2[12;22H[8;25H47[12;22H[8;26H3[12;22H[8;25H37[12;22H[8;26H2[12;22H[8;25H28[12;22H[8;26H3[12;22H[8;25H19[12;22H[8;17H3min 1s remaining)[K[12;22H[8;22H0[12;22H[8;17H2min 59s remaining)[12;22H[8;23H8[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H5[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;16H9min 3s remaining)[K[12;22H[8;21H2[12;22H[8;21H1[12;22H[8;21H0[12;22H[8;16H8min 59s remaining)[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H7min 0s remaining)[K[12;22H[8;16H6min 59s remaining)[12;22H[12;24H[97m[44m8[12;22H[8;22H[30m[47m8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H8[5C9[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;16H14min 38s remaining)[12;22H[8;23H7[12;22H[8;23H6[12;22H[8;23H4[12;22H[8;23H3[12;22H[8;23H1[12;22H[8;22H29[12;22H[8;23H8[12;22H[8;23H6[12;22H[8;23H4[12;22H[8;23H2[12;22H[8;23H0[12;22H[8;16H4min 22s remaining)[K[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H19[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H3min 45[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H39[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;16H2min 28[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;5H50[12;22H[8;22H3[12;22H[8;6H1[15C2[12;22H[8;6H2[15C1[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[15C0[12;22H[8;6H6[12;22H[8;6H7[9C1min 43[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H60[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[12;24H[97m[44m9[12;22H[8;6H[30m[47m9[12;22H[8;5H70[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;22H2[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;22H1[12;22H[8;6H9[12;22H[8;22H0[12;22H[8;21H39[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;5H80[12;22H[8;6H1[15C5[12;22H[8;6H2[12;22H[8;6H3[14C7s remaining)[K[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[14C6[12;22H[8;6H9[12;22H[8;5H90[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;4H400[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[14C5[12;22H[8;21H4[12;22H[8;21H3[12;22H[8;6H7[12;22H[8;6H8[14C42s remaining)[12;22H[8;6H9[12;22H[8;5H10[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[15C1[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;22H0[12;22H[8;21H39[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[15C8[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;6H8[15C5[12;22H[12;23H[97m[44m10[12;22H[8;6H[30m[47m9[12;22H[8;5H30[12;22H[8;22H4[12;22H[8;6H1[12;22H[8;6H2[14C18[12;22H[8;6H3[15C7[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H40[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;22H6[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[15C5[12;22H[8;6H9[12;22H[8;5H50[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H60[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H70[15C4[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;16H2min 0s remaining)[K[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[9C1min 59s remaining)[12;22H[8;6H9[12;22H[8;5H80[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H90[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[15C8[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;4H500[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[15C7[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;16H4min 1s remaining)[K[12;22H[8;6H7[14C0[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H10[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;16H3min 59s remaining)[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;16H4[5C1[12;22H[8;6H6[12;22H[8;22H0[12;22H[8;21H49[12;22H[8;22H8[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H20[12;22H[8;6H1[15C7[12;22H[8;6H2[12;22H[8;16H6[5C5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;16H8min 59[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;22H6[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;16H5min 16[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H9s remaining)[K[12;22H[8;6H5[12;22H[8;21H8[12;22H[8;16H3min 53s remaining)[12;22H[8;22H2[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;22H1[12;22H[8;5H30[12;22H[8;22H0[12;22H[12;24H[97m[44m1[12;22H[8;6H[30m[47m1[14C49[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[15C8[12;22H[8;6H8[12;22H[8;6H9[15C7[12;22H[8;5H40[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[15C6[12;22H[8;6H5[12;22H[8;6H6[14C5s remaining)[K[12;22H[8;21H4[12;22H[8;21H3[12;22H[8;21H2[12;22H[8;6H7[12;22H[8;6H8[14C1[12;22H[8;21H0[12;22H[8;16H2min 59s remaining)[12;22H[8;22H8[12;22H[8;21H35[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;16H3min 43[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H39[12;22H[8;16H5min 23[12;22H[8;6H9[12;22H[8;5H50[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H19[12;22H[8;21H5[12;22H[8;22H8[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;22H7[12;22H[8;22H5[12;22H[8;22H4[12;22H[8;6H3[12;22H[8;6H4[15C3[12;22H[8;22H2[12;22H[8;6H5[15C1[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;22H0[12;22H[8;6H8[14C49[12;22H[8;6H9[12;22H[8;5H60[12;22H[8;6H1[12;22H[8;16H3min 11[12;22H[8;22H0[12;22H[8;21H9s remaining)[K[12;22H[8;21H8[12;22H[8;21H7[12;22H[8;21H6[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[14C48s remaining)[12;22H[8;22H7[12;22H[8;6H8[15C6[12;22H[8;6H9[15C5[12;22H[8;5H70[12;22H[8;6H1[15C4[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H80[12;22H[8;6H1[12;22H[8;22H3[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[15C2[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H90[15C1[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;22H0[12;22H[8;16H2min 39[12;22H[8;22H8[12;22H[8;22H7[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;22H6[12;22H[8;6H9[12;22H[8;4H600[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[15C5[12;22H[8;6H6[12;22H[8;6H7[9C3min 54[12;22H[8;22H3[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H10[15C2[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;6H8[12;22H[8;21H49[12;22H[8;16H4[5Cs remaining)[K[12;22H[12;24H[97m[44m2[12;22H[8;21H[30m[47m3[12;22H[8;6H9[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;21H2[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[14C1[12;22H[8;21H0[12;22H[8;16H3min 59s remaining)[12;22H[8;22H8[12;22H[8;16H4min 8s remaining)[K[12;22H[8;6H6[14C7[12;22H[8;6H7[12;22H[8;21H6[12;22H[8;21H5[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H30[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[14C4[12;22H[8;6H5[12;22H[8;21H3[12;22H[8;16H5min 8[12;22H[8;21H7[12;22H[8;21H6[12;22H[8;21H5[12;22H[8;21H4[12;22H[8;21H3[12;22H[8;21H1[12;22H[8;16H3min 34s remaining)[12;22H[8;6H6[12;22H[8;22H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H29[12;22H[8;6H7[15C8[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H40[12;22H[8;22H7[12;22H[8;6H1[15C6[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;22H5[12;22H[8;16H2min 16[12;22H[8;22H5[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;22H4[12;22H[8;22H3[12;22H[8;6H6[15C2[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;22H1[12;22H[8;6H9[12;22H[8;5H50[15C0[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;22H3[12;22H[8;6H3[12;22H[8;22H2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;21H9s remaining)[K[12;22H[8;21H8[12;22H[8;21H14s remaining)[12;22H[8;22H3[12;22H[8;6H4[15C2[12;22H[8;22H1[12;22H[8;22H0[12;22H[8;6H5[14C9s remaining)[K[12;22H[8;6H6[12;22H[8;21H8[12;22H[8;21H6[12;22H[8;21H5[12;22H[8;21H3[12;22H[8;21H2[12;22H[8;16H58s remaining)[K[12;22H[8;6H7[10C7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H60[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[10C6[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H70[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[10C5[12;22H[8;6H9[12;22H[8;5H80[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;17H4[12;22H[8;6H7[12;22H[8;6H8[10C3[12;22H[8;6H9[12;22H[8;5H90[12;22H[8;6H1[12;22H[8;6H2[12;22H[12;24H[97m[44m3[12;22H[8;6H[30m[47m3[12;22H[8;6H4[10C5[12;22H[8;17H4[12;22H[8;17H3[12;22H[8;17H2[12;22H[8;6H5[12;22H[8;17H1[12;22H[8;6H6[10C0[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;16H49[12;22H[8;6H9[12;22H[8;4H700[10C8[12;22H[8;17H6[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;17H5[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;17H4[12;22H[8;17H3[12;22H[8;17H2[12;22H[8;6H9[12;22H[8;5H10[12;22H[8;17H1[12;22H[8;6H1[10C0[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;16H39[12;22H[8;17H8[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[9C29[12;22H[8;6H9[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;17H8[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H30[12;22H[8;6H1[10C7[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;17H6[12;22H[8;6H4[12;22H[8;17H5[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;17H4[12;22H[8;6H8[12;22H[8;17H8[12;22H[8;17H7[12;22H[8;17H6[12;22H[8;6H9[12;22H[8;5H40[12;22H[8;6H1[10C5[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[10C4[12;22H[8;6H9[12;22H[8;16H35[12;22H[8;17H4[12;22H[8;17H3[12;22H[12;24H[97m[44m4[12;22H[8;17H[30m[47m2[12;22H[8;17H1[12;22H[8;17H0[12;22H[8;5H50[12;22H[8;17H6[12;22H[8;17H5[12;22H[8;17H4[12;22H[8;17H3[12;22H[8;17H2[12;22H[8;6H1[12;22H[8;16H40[12;22H[8;16H39[12;22H[8;17H8[12;22H[8;17H7[12;22H[8;17H6[12;22H[8;17H5[12;22H[8;6H2[12;22H[8;6H3[10C4[12;22H[8;6H4[10C3[12;22H[8;6H5[12;22H[8;6H6[9C29[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H60[12;22H[8;17H8[12;22H[8;6H1[12;22H[8;6H2[10C7[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[10C6[12;22H[8;17H5[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;17H4[12;22H[8;5H70[12;22H[8;6H1[10C3[12;22H[8;17H2[12;22H[8;6H2[12;22H[8;17H1[12;22H[8;6H3[12;22H[8;16H14[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H80[12;22H[8;6H1[12;22H[8;6H2[10C3[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;17H2[12;22H[8;6H9[12;22H[8;5H90[10C1[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[10C0[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;4H800[12;22H[8;6H1[12;22H[8;6H2[9C9s remaining)[K[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;5H10[12;22H[8;16H8[12;22H[8;6H1[12;22H[8;6H2[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;6H8[12;22H[8;6H9[9C7[12;22H[8;16H6[12;22H[8;16H5[12;22H[8;5H20[12;22H[8;6H1[12;22H[8;6H2[9C4[12;22H[8;6H3[12;22H[8;6H4[12;22H[8;6H5[12;22H[8;6H6[12;22H[8;6H7[12;22H[8;16H3[12;22H[8;6H8[12;22H[8;6H9[12;22H[8;16H2[12;22H[8;16H1[12;22H[8;15H[K[12;22H[8;5H30[12;22H[12;24H[97m[44m5[12;22H[8;1H[30m[47m[K[12;22H[8;2Hremoval of gettext-base (arm64)[12;22H[8;1Hext-base (arm64)[K[12;22H[8;1H removal of libeatmydata1 (arm64)[12;22H[8;1Hatmydata1 (arm64)[K[12;22H[8;1H removal of libefiboot1t64 (arm64)[12;22H[8;1Hfiboot1t64 (arm64)[K[12;22H[8;1H removal of mokutil (arm64)[12;22H[8;1Htil (arm64)[K[12;22H[8;1H removal of libefivar1t64 (arm64)[12;22H[8;1Hfivar1t64 (arm64)[K[12;22H[8;1H[K[12;22H[8;1Hn-daemon-common (arm64)[12;22H[8;1Hon-daemon-common (arm64)[12;22H[8;1H[K[12;22H[8;1Hconfigure cron-daemon-common (arm64)[12;22H[8;1Hron-daemon-common (arm64)[K[12;22H[8;1Hn-daemon-common (arm64)[K[12;22H[8;1H[K[12;22H[8;1Hn (arm64)[12;22H[8;1Hon (arm64)[12;22H[8;1H(arm64)[K[12;22H[8;1H (arm64)[12;22H[8;1Havahi-common-data (arm64)[12;22H[8;1Hbavahi-common-data (arm64)[12;22H[8;1Havahi-common3 (arm64)[K[12;22H[8;1Hbavahi-common3 (arm64)[12;22H[8;1Havahi-client3 (arm64)[K[12;22H[8;1Hbavahi-client3 (arm64)[12;22H[8;1Hcups2t64 (arm64)[K[12;22H[8;1Hbcups2t64 (arm64)[12;22H[8;1H-cert (arm64)[K[12;22H[8;1Hl-cert (arm64)[12;22H[8;1Hpaper2[12;22H[8;1Hbpaper2 (arm64)[12;22H[8;1Hs-daemon (arm64)[12;22H[8;1Hps-daemon (arm64)[12;22H[8;1Havahi-glib1 (arm64)[12;22H[8;1Hbavahi-glib1 (arm64)[12;22H[8;1Hexif12 (arm64)[K[12;22H[8;1Hbexif12 (arm64)[12;22H[8;1Hcupsfilters1t64 (arm64)[12;22H[8;1Hbcupsfilters1t64 (arm64)[12;22H[8;1Hs-browsed (arm64)[K[12;22H[12;24H[97m[44m6[12;22H[8;1H[30m[47mps-browsed (arm64)[12;22H[8;1Hs-pk-helper (arm64)[12;22H[8;1Hps-pk-helper (arm64)[12;22H[8;1Hts-lato (arm64)[K[12;22H[8;1Hnts-lato (arm64)[12;22H[8;1Hboard-configuration (arm64)[12;22H[8;1Hyboard-configuration (arm64)[12;22H[8;1Hde265-0 (arm64)[K[12;22H[8;1Hbde265-0 (arm64)[12;22H[8;1Hheif-plugin-libde265 (arm64)[12;22H[8;1Hbheif-plugin-libde265 (arm64)[12;22H[8;1Hheif-plugin-dav1d (arm64)[K[12;22H[8;1Hbheif-plugin-dav1d (arm64)[12;22H[8;1Hheif1 (arm64)[K[12;22H[8;1Hbheif1 (arm64)[12;22H[8;1Hlqr-1-0 (arm64)[12;22H[8;1Hblqr-1-0 (arm64)[12;22H[8;1Hraw23t64[12;22H[8;1Hbraw23t64 (arm64)[12;22H[8;1Hwebpdemux2 (arm64)[12;22H[8;1Hbwebpdemux2 (arm64)[12;22H[8;1Hgemagick-7-common (arm64)[12;22H[8;1Hagemagick-7-common (arm64)[12;22H[8;1Hmagickcore-7.q16-10 (arm64)[12;22H[8;1Hbmagickcore-7.q16-10 (arm64)[12;22H[8;1Hmagickwand-7.q16-10 (arm64)[K[12;22H[8;1Hbmagickwand-7.q16-10 (arm64)[12;22H[8;1Hreoffice-style-colibre (arm64)[12;22H[8;1Hbreoffice-style-colibre (arm64)[12;22H[8;1Hreoffice-uiconfig-common (arm64)[12;22H[8;1Hbreoffice-uiconfig-common (arm64)[12;22H[8;1Huno-sal3t64 (arm64)[K[12;22H[8;1Hbuno-sal3t64 (arm64)[12;22H[8;1Huno-salhelpergcc3-3t64 (arm64)[12;22H[8;1Hbuno-salhelpergcc3-3t64 (arm64)[12;22H[8;1Huno-cppu3t64 (arm64)[K[12;22H[8;1Hbuno-cppu3t64 (arm64)[12;22H[8;1H-libs-private[12;22H[8;1Ho-libs-private (arm64)[12;22H[8;1Hlangtag-common[12;22H[12;24H[97m[44m7[12;22H[8;1H[30m[47mblangtag-common (arm64)[12;22H[8;1Hlangtag1 (arm64)[K[12;22H[8;1Hblangtag1 (arm64)[12;22H[8;1Huno-cppuhelpergcc3-3t64 (arm64)[12;22H[8;1Hbuno-cppuhelpergcc3-3t64 (arm64)[12;22H[8;1Huno-purpenvhelpergcc3-3t64 (arm64)[12;22H[8;1Hbuno-purpenvhelpergcc3-3t64 (arm64)[12;22H[8;1H (arm64)[K[12;22H[8;1He (arm64)[12;22H[8;1Hnumbertext-data (arm64)[12;22H[8;1Hbnumbertext-data (arm64)[12;22H[8;1Hreoffice-common (arm64)[K[12;22H[8;1Hbreoffice-common (arm64)[12;22H[8;1Hts-opensymbol (arm64)[K[12;22H[8;1Hnts-opensymbol (arm64)[12;22H[8;1Hargon2-1 (arm64)[K[12;22H[8;1Hbargon2-1 (arm64)[12;22H[8;2Hoost-thread1.83.0 (arm64)[12;22H[8;2Hboost-thread1.83.0 (arm64)[12;22H[8;2Hoost-locale1.83.0 (arm64)[K[12;22H[8;2Hboost-locale1.83.0 (arm64)[12;22H[8;1Hclucene-core1t64 (arm64)[K[12;22H[8;1Hbclucene-core1t64 (arm64)[12;22H[8;1Hclucene-contribs1t64 (arm64)[12;22H[8;1Hbclucene-contribs1t64 (arm64)[12;22H[8;1Hcmis-0.6-6t64 (arm64)[K[12;22H[8;1Hbcmis-0.6-6t64 (arm64)[12;22H[8;1Hdconf1 (arm64)[K[12;22H[8;1Hbdconf1 (arm64)[12;22H[8;1Heot0 (arm64)[K[12;22H[8;1Hbeot0 (arm64)[12;22H[8;1Hexttextcat-data (arm64)[12;22H[8;1Hbexttextcat-data (arm64)[12;22H[8;1Hexttextcat-2.0-0[12;22H[8;1Hbexttextcat-2.0-0 (arm64)[12;22H[8;1Hassuan9 (arm64)[K[12;22H[8;1Hbassuan9 (arm64)[12;22H[8;1Hconf (arm64)[K[12;22H[12;24H[97m[44m8[12;22H[8;1H[30m[47mgconf (arm64)[12;22H[8;1Hksba8[12;22H[8;1Hbksba8 (arm64)[12;22H[8;1Hnpth0t64 (arm64)[12;22H[8;1Hbnpth0t64 (arm64)[12;22H[8;1Hmngr (arm64)[K[12;22H[8;1Hrmngr (arm64)[12;22H[8;1Hpg-l10n (arm64)[12;22H[8;1Hupg-l10n (arm64)[12;22H[8;1H (arm64)[K[12;22H[8;1Hg (arm64)[12;22H[8;1Hentry-curses (arm64)[12;22H[8;1Hnentry-curses (arm64)[12;22H[8;1Hs-user-session (arm64)[12;22H[8;1Hus-user-session (arm64)[12;22H[8;1Hgck-2-2 (arm64)[K[12;22H[8;1Hbgck-2-2 (arm64)[12;22H[8;1Hgcr-4-4 (arm64)[K[12;22H[8;1Hbgcr-4-4 (arm64)[12;22H[8;1H-update-icon-cache (arm64)[12;22H[8;1Hk-update-icon-cache (arm64)[12;22H[8;1Holor-icon-theme (arm64)[K[12;22H[8;1Hcolor-icon-theme (arm64)[12;22H[8;1Haita-icon-theme (arm64)[K[12;22H[8;1Hwaita-icon-theme (arm64)[12;22H[8;1Hlzo2-2 (arm64)[K[12;22H[8;1Hblzo2-2 (arm64)[12;22H[8;1Hcairo-script-interpreter2 (arm64)[12;22H[8;1Hbcairo-script-interpreter2 (arm64)[12;22H[8;1Hcloudproviders0 (arm64)[K[12;22H[8;1Hbcloudproviders0 (arm64)[12;22H[8;1Hcolord2 (arm64)[K[12;22H[8;1Hbcolord2 (arm64)[12;22H[8;1Hgraphene-1.0-0 (arm64)[12;22H[8;1Hbgraphene-1.0-0 (arm64)[12;22H[8;1Hharfbuzz-subset0 (arm64)[12;22H[8;1Hbharfbuzz-subset0 (arm64)[12;22H[8;1Hxdamage1 (arm64)[K[12;22H[8;1Hbxdamage1 (arm64)[12;22H[8;1Hxi6 (arm64)[K[12;22H[97m[41m [22C[44m9[12;22H[8;1H[30m[47mbxi6 (arm64)[12;22H[8;1Hxinerama1 (arm64)[12;22H[8;1Hbxinerama1 (arm64)[12;22H[8;1Hnf-service[12;22H[8;1Honf-service (arm64)[12;22H[8;1Hnf-gsettings-backend (arm64)[12;22H[8;1Honf-gsettings-backend (arm64)[12;22H[8;1Hgtk-4-common (arm64)[K[12;22H[8;1Hbgtk-4-common (arm64)[12;22H[8;1Hgtk-4-1 (arm64)[K[12;22H[8;1Hbgtk-4-1 (arm64)[12;22H[8;1Hsecret-common (arm64)[12;22H[8;1Hbsecret-common (arm64)[12;22H[8;1Hsecret-1-0 (arm64)[K[12;22H[8;1Hbsecret-1-0 (arm64)[12;22H[8;1H4 (arm64)[K[12;22H[8;1Hr4 (arm64)[12;22H[8;1Hgck-1-0 (arm64)[12;22H[8;1Hbgck-1-0 (arm64)[12;22H[8;1Hgcr-base-3-1 (arm64)[12;22H[8;1Hbgcr-base-3-1 (arm64)[12;22H[8;1Hspi2-common (arm64)[K[12;22H[8;1H-spi2-common (arm64)[12;22H[8;1Hatk1.0-0t64 (arm64)[K[12;22H[8;1Hbatk1.0-0t64 (arm64)[12;22H[8;1Hatspi2.0-0t64 (arm64)[12;22H[8;1Hbatspi2.0-0t64 (arm64)[12;22H[8;1Hatk-bridge2.0-0t64 (arm64)[12;22H[8;1Hbatk-bridge2.0-0t64 (arm64)[12;22H[8;1Hxcomposite1 (arm64)[K[12;22H[8;1Hbxcomposite1 (arm64)[12;22H[8;1Hgtk-3-common[12;22H[8;1Hbgtk-3-common (arm64)[12;22H[8;1Hgtk-3-0t64 (arm64)[K[12;22H[8;1Hbgtk-3-0t64 (arm64)[12;22H[8;1Hgcr-ui-3-1 (arm64)[K[12;22H[8;1Hbgcr-ui-3-1 (arm64)[12;22H[8;1H (arm64)[K[12;22H[8;1Hr (arm64)[12;22H[8;1Hentry-gnome3 (arm64)[12;22H[12;2H[97m[41m [20C[44m20[12;22H[8;1H[30m[47mnentry-gnome3 (arm64)[12;22H[8;1H-agent (arm64)[K[12;22H[8;1Hg-agent (arm64)[12;22H[8;1Hsm (arm64)[K[12;22H[8;1Hgsm (arm64)[12;22H[8;1Hpg (arm64)[K[12;22H[8;1Hupg (arm64)[12;22H[8;1Hgpgme11t64 (arm64)[12;22H[8;1Hbgpgme11t64 (arm64)[12;22H[8;1Hgpgmepp6[12;22H[8;1Hbgpgmepp6t64 (arm64)[12;22H[8;1Hharfbuzz-icu0 (arm64)[12;22H[8;1Hbharfbuzz-icu0 (arm64)[12;22H[8;1Hhunspell-1.7-[12;22H[8;1Hbhunspell-1.7-0 (arm64)[12;22H[8;1Hhyphen0 (arm64)[K[12;22H[8;1Hbhyphen0 (arm64)[12;22H[8;1Hmythes-1.2-0 (arm64)[12;22H[8;1Hbmythes-1.2-0 (arm64)[12;22H[8;1Hnspr4 (arm64)[K[12;22H[8;1Hbnspr4 (arm64)[12;22H[8;1Hnss3 (arm64)[K[12;22H[8;1Hbnss3 (arm64)[12;22H[8;1Hnumbertext-1.0-0 (arm64)[12;22H[8;1Hbnumbertext-1.0-0 (arm64)[12;22H[8;2Hoost-iostreams1.83.0 (arm64)[12;22H[8;2Hboost-iostreams1.83.0 (arm64)[12;22H[8;1Horcus-parser-0.18-0 (arm64)[K[12;22H[8;1Hborcus-parser-0.18-0 (arm64)[12;22H[8;1Horcus-0.18-0 (arm64)[K[12;22H[8;1Hborcus-0.18-0 (arm64)[12;22H[8;1Hngtcp2-16 (arm64)[K[12;22H[8;1Hbngtcp2-16 (arm64)[12;22H[8;1Hngtcp2-crypto-gnutls8 (arm64)[12;22H[8;1Hbngtcp2-crypto-gnutls8 (arm64)[12;22H[8;1Hcurl3t64-gnutls (arm64)[K[12;22H[8;1Hbcurl3t64-gnutls (arm64)[12;22H[8;1Hpoppler147 (arm64)[K[12;22H[12;24H[97m[44m1[12;22H[8;1H[30m[47mbpoppler147 (arm64)[12;22H[8;1Hxslt1.1 (arm64)[K[12;22H[8;1Hbxslt1.1 (arm64)[12;22H[8;1Hyajl2 (arm64)[K[12;22H[8;1Hbyajl2 (arm64)[12;22H[8;1Hraptor2-0 (arm64)[12;22H[8;1Hbraptor2-0 (arm64)[12;22H[8;1Hmhash2 (arm64)[K[12;22H[8;1Hbmhash2 (arm64)[12;22H[8;1Hrasqal3t64 (arm64)[12;22H[8;1Hbrasqal3t64 (arm64)[12;22H[8;1Hrdf0t64 (arm64)[K[12;22H[8;1Hbrdf0t64 (arm64)[12;22H[8;1Hrevenge-0.0-0 (arm64)[12;22H[8;1Hbrevenge-0.0-0 (arm64)[12;22H[8;1Hxmlsec1t64 (arm64)[K[12;22H[8;1Hbxmlsec1t64 (arm64)[12;22H[8;1Hxmlsec1t64-nss (arm64)[12;22H[8;1Hbxmlsec1t64-nss (arm64)[12;22H[8;1Hzxcvbn0 (arm64)[K[12;22H[8;1Hbzxcvbn0 (arm64)[12;22H[8;1Hzxing3 (arm64)[K[12;22H[8;1Hbzxing3 (arm64)[12;22H[8;1Hreoffice-core (arm64)[12;22H[8;1Hbreoffice-core (arm64)[12;22H[8;1Hreoffice-base-core (arm64)[12;22H[8;1Hbreoffice-base-core (arm64)[12;22H[8;1Hreoffice-uiconfig-calc (arm64)[12;22H[8;1Hbreoffice-uiconfig-calc (arm64)[12;22H[8;1Hnor-libcoinutils3v5 (arm64)[K[12;22H[8;1Hinor-libcoinutils3v5 (arm64)[12;22H[8;1Hnor-libosi1v5 (arm64)[K[12;22H[8;1Hinor-libosi1v5 (arm64)[12;22H[8;1Hnor-libclp1 (arm64)[K[12;22H[8;1Hinor-libclp1 (arm64)[12;22H[8;1Hnor-libcgl1 (arm64)[K[12;22H[8;1Hinor-libcgl1 (arm64)[12;22H[8;1Hnor-libcbc3.1 (arm64)[12;22H[8;1Hinor-libcbc3.1 (arm64)[12;22H[8;1Hnor-libcoinmp0[12;22H[12;3H[97m[41m [20C[44m2[12;22H[8;1H[30m[47minor-libcoinmp0 (arm64)[12;22H[8;1Hsuitesparseconfig7 (arm64)[12;22H[8;1Hbsuitesparseconfig7 (arm64)[12;22H[8;1Hcolamd3 (arm64)[K[12;22H[8;1Hbcolamd3 (arm64)[12;22H[8;1Hetonyek-0.1-1 (arm64)[12;22H[8;1Hbetonyek-0.1-1 (arm64)[12;22H[8;1Hmwaw-0.3-3 (arm64)[K[12;22H[8;1Hbmwaw-0.3-3 (arm64)[12;22H[8;1Hodfgen-0.1-1 (arm64)[12;22H[8;1Hbodfgen-0.1-1 (arm64)[12;22H[8;1Hstaroffice-0.0-0 (arm64)[12;22H[8;1Hbstaroffice-0.0-0 (arm64)[12;22H[8;1Hwps-0.4-4 (arm64)[K[12;22H[8;1Hbwps-0.4-4 (arm64)[12;22H[8;1H[K[12;22H[8;1Hconfigure libreoffice-style-colibre (arm64)[12;22H[8;1Hibreoffice-style-colibre (arm64)[K[12;22H[8;1Hreoffice-style-colibre (arm64)[K[12;22H[8;1Hconfigure libreoffice-uiconfig-common (arm64)[12;22H[8;1Hibreoffice-uiconfig-common (arm64)[K[12;22H[8;1Hreoffice-uiconfig-common (arm64)[K[12;22H[8;1Hconfigure libuno-sal3t64[12;22H[8;1Hibuno-sal3t64 (arm64)[K[12;22H[8;1Huno-sal3t64 (arm64)[K[12;22H[8;1Hconfigure libuno-salhelpergcc3-3t64 (arm64)[12;22H[8;1Hibuno-salhelpergcc3-3t64 (arm64)[K[12;22H[8;1Huno-salhelpergcc3-3t64 (arm64)[K[12;22H[8;1Hconfigure libuno-cppu3t64 (arm64)[12;22H[8;1Hibuno-cppu3t64 (arm64)[K[12;22H[8;1Huno-cppu3t64 (arm64)[K[12;22H[8;1Hconfigure uno-libs-private (arm64)[12;22H[8;1Hno-libs-private (arm64)[K[12;22H[8;1H-libs-private (arm64)[K[12;22H[8;1Hconfigure liblangtag-common (arm64)[12;22H[8;1Hiblangtag-common (arm64)[K[12;22H[8;1Hlangtag-common (arm64)[K[12;22H[8;1Hconfigure liblangtag1 (arm64)[12;22H[8;1Hiblangtag1 (arm64)[K[12;22H[8;1Hlangtag1 (arm64)[K[12;22H[8;1Hconfigure libuno-cppuhelpergcc3-3t64 (arm64)[12;22H[8;1Hibuno-cppuhelpergcc3-3t64 (arm64)[K[12;22H[8;1Huno-cppuhelpergcc3-3t64 (arm64)[K[12;22H[8;1Hconfigure libuno-purpenvhelpergcc3-3t64 (arm64[12;22H[8;1Hibuno-purpenvhelpergcc3-3t64 (arm64)[K[12;22H[8;1Huno-purpenvhelpergcc3-3t64 (arm64)[K[12;22H[8;1Hconfigure ure (arm64)[K[12;22H[8;1Hre (arm64)[K[12;22H[8;1H (arm64)[K[12;22H[8;1Hconfigure libnumbertext-data (arm64)[12;22H[8;1Hibnumbertext-data (arm64)[K[12;22H[12;4H[97m[41m [19C[44m3[12;22H[8;1H[30m[47mnumbertext-data (arm64)[K[12;22H[8;1Hconfigure libreoffice-common (arm64)[12;22H[8;1Hibreoffice-common (arm64)[K[12;22H[12;5H[97m[41m                 100%[K[12;22H[?12l[?25h[21;1H[37m[40m(B[m[39;49m[K[?1049l[23;0;0ttasksel: apt-get failed (100)
+[提示] tasksel 安装失败，回退到直接安装任务包...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+E: Unable to locate package xfce-desktop
+
+@@ failed 安装 XFCE 桌面环境失败。
+
+最终状态: failed - 安装 XFCE 桌面环境失败。

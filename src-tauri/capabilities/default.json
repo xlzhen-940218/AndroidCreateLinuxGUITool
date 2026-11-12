@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "默认权限：仅使用前端 invoke 与事件监听",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

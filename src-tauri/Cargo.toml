@@ -1,0 +1,45 @@
+[package]
+name = "android-create-linux-gui-tool"
+version = "0.1.0"
+description = "在支持 AVF 的 Android 设备上一键安装并远程使用 Linux 桌面环境"
+authors = ["AndroidCreateLinuxGUITool"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "acl_tool_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# 生产构建必须开启：把前端资源内嵌进 exe。
+# 由 Tauri CLI 打包时自动启用；手动 cargo build 时请显式指定：
+#   cargo build --release --features custom-protocol
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tokio = { version = "1", features = [
+  "process",
+  "fs",
+  "io-util",
+  "time",
+  "macros",
+  "net",
+  "rt-multi-thread",
+  "sync",
+] }
+roxmltree = "0.20"
+once_cell = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

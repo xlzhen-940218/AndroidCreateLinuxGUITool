@@ -1,0 +1,307 @@
+设备: 19011FDF600DQR
+配置: 桌面=xfce 国内源=true 语言=zh_CN.UTF-8 密码=linux 分辨率=1920x1080
+[preparing] 正在启动 Linux Terminal 应用...
+[preparing] 正在探测虚拟机共享存储...
+[preparing] 脚本已推送至 /storage/emulated/0/acl_install.sh
+[running] 正在虚拟机终端中执行安装脚本...
+▶ 检查虚拟机环境
+=== Android Linux 桌面环境安装 ===
+日志文件: /mnt/shared/acl_install.log
+用户: droid  (sudo='sudo -n')
+▶ 识别 Debian 版本
+系统: Debian 13 (suite=trixie)
+架构: aarch64   内核: 6.12.93-android16-6-g3a7d1771d492-ab16496487-4k
+▶ 切换国内软件源
+正在切换到国内镜像源 (清华 TUNA)...
+国内源已生效: https://mirrors.tuna.tsinghua.edu.cn/debian (trixie)
+▶ 更新软件包
+正在更新软件包列表...
+Hit:1 https://mirrors.tuna.tsinghua.edu.cn/debian trixie InRelease
+Hit:2 https://mirrors.tuna.tsinghua.edu.cn/debian trixie-updates InRelease
+Hit:3 https://mirrors.tuna.tsinghua.edu.cn/debian-security trixie-security InRelease
+Reading package lists...
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:1 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:2 and /etc/apt/sources.list.d/debian.sources:1
+W: Target Packages (main/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (main/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (main/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (contrib/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (contrib/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-arm64/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Packages (non-free-firmware/binary-all/Packages) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+W: Target Translations (non-free-firmware/i18n/Translation-en) is configured multiple times in /etc/apt/sources.list:3 and /etc/apt/sources.list.d/debian.sources:2
+正在升级已安装的软件包...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+▶ 配置语言与字体
+正在配置系统语言 (zh_CN.UTF-8) 与中文字体...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+locales is already the newest version (2.41-12+deb13u4).
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Generating locales (this might take a while)...
+  en_US.UTF-8... done
+  zh_CN.UTF-8... done
+Generation complete.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+fonts-noto-cjk is already the newest version (1:20240730+repack1-1).
+fonts-wqy-zenhei is already the newest version (0.9.45-8).
+fonts-wqy-microhei is already the newest version (0.2.0-beta-4).
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+▶ 应用网络补丁
+正在植入 Android 虚拟机网络桥接补丁...
+▶ 配置 SSH 服务
+正在配置 SSH 服务 (端口 10022)...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+openssh-server is already the newest version (1:10.0p1-7+deb13u4).
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+▶ 安装桌面环境
+正在安装 XFCE 桌面环境，这可能需要较长时间...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+xfce4 is already the newest version (4.20.1).
+xfce4-terminal is already the newest version (1.1.4-1).
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+▶ 配置 TigerVNC
+正在配置 TigerVNC 远程桌面...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+tigervnc-standalone-server is already the newest version (1.15.0+dfsg-2.1~deb13u1).
+tigervnc-common is already the newest version (1.15.0+dfsg-2.1~deb13u1).
+dbus-x11 is already the newest version (1.16.2-2).
+x11-xserver-utils is already the newest version (7.7+11).
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+使用会话: xfce
+正在设置 VNC 密码...
+VNC 密码已设置。
+VNC 服务单元: tigervncserver@:1.service
+VNC 服务已启动，监听 5901 端口。
+▶ 挂载共享目录
+正在配置 Android 共享目录挂载...
+▶ 安装可选组件
+正在安装中文输入法 Fcitx5...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+fcitx5 is already the newest version (5.1.12-2).
+fcitx5-chinese-addons is already the newest version (5.1.8-1).
+fcitx5-frontend-gtk3 is already the newest version (5.1.3-3).
+fcitx5-frontend-qt5 is already the newest version (5.1.9-1+b1).
+im-config is already the newest version (0.57-2).
+The following packages were automatically installed and are no longer required:
+  bc coinor-libcbc3.1 coinor-libcgl1 coinor-libclp1 coinor-libcoinmp0
+  coinor-libcoinutils3v5 coinor-libosi1v5 cups-browsed cups-daemon
+  cups-pk-helper fonts-lato fonts-opensymbol imagemagick-7-common libargon2-1
+  libboost-locale1.83.0 libboost-thread1.83.0 libclucene-contribs1t64
+  libclucene-core1t64 libcmis-0.6-6t64 libcolamd3 libcupsfilters1t64 libeot0
+  libetonyek-0.1-1 libexttextcat-2.0-0 libexttextcat-data libharfbuzz-icu0
+  libhyphen0 liblangtag-common liblangtag1 liblqr-1-0 libmagickcore-7.q16-10
+  libmagickwand-7.q16-10 libmhash2 libmwaw-0.3-3 libmythes-1.2-0
+  libnumbertext-1.0-0 libnumbertext-data libodfgen-0.1-1 liborcus-0.18-0
+  liborcus-parser-0.18-0 libpaper2 libraptor2-0 librasqal3t64 libraw23t64
+  librdf0t64 libreoffice-base-core libreoffice-common libreoffice-core
+  libreoffice-style-colibre libreoffice-uiconfig-calc
+  libreoffice-uiconfig-common librevenge-0.0-0 libstaroffice-0.0-0
+  libsuitesparseconfig7 libuno-cppu3t64 libuno-cppuhelpergcc3-3t64
+  libuno-purpenvhelpergcc3-3t64 libuno-sal3t64 libuno-salhelpergcc3-3t64
+  libwps-0.4-4 libxmlsec1t64 libxmlsec1t64-nss libyajl2 libzxcvbn0 libzxing3
+  ssl-cert uno-libs-private ure
+Use 'sudo apt autoremove' to remove them.
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+▶ 收尾
+============================================================
+ 全部配置已完成！
+============================================================
+桌面环境: XFCE
+VNC 地址: 127.0.0.1:5901  (需在 Terminal 应用的「Port control」中放行 5901)
+SSH 端口: 10022
+
+@@ success 桌面环境安装完成。
+
+最终状态: success - 桌面环境安装完成。
