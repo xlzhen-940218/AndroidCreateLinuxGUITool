@@ -7,6 +7,7 @@ import type {
   EnvInfo,
   InstallOptions,
   InstallStatus,
+  ImageStatus,
   InstalledReport,
   PortResult,
   SecurityIssue,
@@ -32,6 +33,8 @@ export const api = {
     invoke<boolean>("click_allow", { serial, adbPath }),
   terminalPhase: (serial: string, adbPath?: string) =>
     invoke<TerminalPhase>("terminal_phase", { serial, adbPath }),
+  installLinuxImage: (serial: string, adbPath?: string) =>
+    invoke<ImageStatus>("install_linux_image", { serial, adbPath }),
   openTerminal: (serial: string, adbPath?: string) =>
     invoke<void>("open_terminal", { serial, adbPath }),
   detectInstalled: (serial: string, adbPath?: string) =>
@@ -65,4 +68,8 @@ export function onInstallStatus(cb: (status: InstallStatus) => void): Promise<Un
 
 export function onVncProgress(cb: (message: string) => void): Promise<UnlistenFn> {
   return listen<string>("vnc-progress", (e) => cb(e.payload));
+}
+
+export function onImageProgress(cb: (status: ImageStatus) => void): Promise<UnlistenFn> {
+  return listen<ImageStatus>("image-progress", (e) => cb(e.payload));
 }

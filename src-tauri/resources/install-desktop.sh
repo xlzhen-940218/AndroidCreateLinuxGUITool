@@ -309,40 +309,90 @@ VNC_OK=0
 vnc_port_listening() {
     (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":${VNC_PORT}\b"
 }
-# 上次残留的会话进程不会随 Xvnc 一起退出，会让新会话以
-# "X server already running" 的形式提前退出（桌面依旧黑屏），所以先清掉。
+# 窗口管理器是否已接管会话。VNC 端口监听 != 桌面正常：
+# 没有 WM 时画面只有 nemo-desktop 的图标，没有面板/任务栏。
+vnc_wm_running() {
+    pgrep -u "$TARGET_USER" -x xfwm4 > /dev/null 2>&1 && return 0
+    pgrep -u "$TARGET_USER" -x cinnamon > /dev/null 2>&1 && return 0
+    pgrep -u "$TARGET_USER" -x muffin > /dev/null 2>&1 && return 0
+    return 1
+}
+# 上一轮会话残留的进程不会随 Xvnc 一起退出：
+#   * 残留的 X 客户端会让新 Xvnc 报 "X server already running"；
+#   * 残留的窗口管理器（Cinnamon 的 cinnamon/muffin 等）仍占着 WM 身份，
+#     新会话里的 Cinnamon 会报
+#     "Failed to create backend: Could not take control ... EBUSY"，
+#     结果是黑屏 + 只有桌面图标 + 没有面板。
+# 所以重启前必须把它们真正杀干净，并等到进程退出。
 vnc_kill_stale_session() {
-    pkill -u "$TARGET_USER" -f 'xfce4-session|xfce4-panel|xfdesktop|xfwm4|xfsettingsd|tigervncconfig' 2>/dev/null || true
+    pkill -u "$TARGET_USER" -f 'xfce4-session|xfce4-panel|xfdesktop|xfwm4|xfsettingsd|xfce4-power-manager' 2>/dev/null || true
+    pkill -u "$TARGET_USER" -f 'cinnamon-session|muffin|nemo-desktop|cinnamon|csd-|tigervncconfig' 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -u "$TARGET_USER" -f 'xfwm4|cinnamon-session|muffin|cinnamon --replace' > /dev/null 2>&1 || break
+        sleep 1
+    done
     sleep 2
 }
-if [ -n "$VNC_UNIT" ]; then
-    vnc_kill_stale_session
-    $SUDO systemctl restart "$VNC_UNIT" 2>/dev/null || true
-    sleep 4
-    if vnc_port_listening; then
-        VNC_OK=1
+# 清掉上一次遗留的 X socket / lock 文件（仅在确认没有 Xtigervnc 运行时）
+vnc_clear_x_locks() {
+    if ! pgrep -f "Xtigervnc ${VNC_DISPLAY}" > /dev/null 2>&1; then
+        $SUDO rm -f "/tmp/.X${VNC_DISPLAY#:}-lock" "/tmp/.X11-unix/X${VNC_DISPLAY#:}" 2>/dev/null || true
     fi
-fi
-if [ "$VNC_OK" != "1" ]; then
-    echo "[提示] systemd 方式未能监听 ${VNC_PORT}，改用 $VNC_CMD 直接启动..."
+}
+vnc_wait_port() {
+    for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+        vnc_port_listening && return 0
+        sleep 1
+    done
+    return 1
+}
+vnc_wait_wm() {
+    for _ in $(seq 1 20); do
+        vnc_wm_running && return 0
+        sleep 1
+    done
+    return 1
+}
+vnc_start_via_unit() {
+    [ -n "$VNC_UNIT" ] || return 1
+    vnc_kill_stale_session
+    $SUDO systemctl stop "$VNC_UNIT" 2>/dev/null || true
+    vnc_clear_x_locks
+    $SUDO systemctl start "$VNC_UNIT" 2>/dev/null || return 1
+    vnc_wait_port
+}
+vnc_start_direct() {
     $RUNAS $VNC_CMD -kill "$VNC_DISPLAY" > /dev/null 2>&1 || true
     vnc_kill_stale_session
-    if $RUNAS $VNC_CMD "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -localhost no > /dev/null 2>&1; then
-        sleep 4
-        if vnc_port_listening; then
-            VNC_OK=1
-        fi
+    vnc_clear_x_locks
+    $RUNAS $VNC_CMD "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -localhost no > /dev/null 2>&1 || return 1
+    vnc_wait_port
+}
+if vnc_start_via_unit; then
+    VNC_OK=1
+else
+    echo "[提示] systemd 方式未能监听 ${VNC_PORT}，改用 $VNC_CMD 直接启动..."
+    vnc_start_direct && VNC_OK=1
+fi
+# 端口起来了但窗口管理器没接管（典型：旧会话残留导致 EBUSY、黑屏无面板）
+# → 彻底清理后重试一次，尽量不让用户遇到"进得去但没桌面"的状态。
+if [ "$VNC_OK" = "1" ] && ! vnc_wait_wm; then
+    echo "[提示] 桌面会话未接管窗口管理器，清理残留会话后重试..."
+    if [ -n "$VNC_UNIT" ]; then
+        vnc_start_via_unit || true
+    else
+        vnc_start_direct || true
     fi
+    vnc_wait_wm || true
 fi
 if [ "$VNC_OK" = "1" ]; then
-    sleep 4
     if vnc_port_listening; then
         echo "VNC 服务已启动，监听 ${VNC_PORT} 端口。"
-        if pgrep -u "$TARGET_USER" -x xfwm4 > /dev/null 2>&1; then
-            echo "桌面会话已启动（窗口管理器 xfwm4 运行中）。"
+        if vnc_wm_running; then
+            echo "桌面会话已启动（窗口管理器运行中，$DESKTOP_NAME 桌面可用）。"
         else
             echo "[警告] VNC 端口已监听，但桌面会话未启动，连接后可能是黑屏。最近会话日志:"
-            tail -3 "$HOME/.xsession-errors" 2>/dev/null | sed 's/^/    /'
+            tail -5 "$HOME/.xsession-errors" 2>/dev/null | sed 's/^/    /'
         fi
     else
         echo "[警告] VNC 进程已启动，但未检测到 ${VNC_PORT} 端口监听，请稍后重试连接。"

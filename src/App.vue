@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, onInstallLog, onInstallStep, onInstallStatus, onVncProgress } from "./api";
+import { api, onImageProgress, onInstallLog, onInstallStep, onInstallStatus, onVncProgress } from "./api";
 import LogPanel from "./components/LogPanel.vue";
 import ModalDialog, { type DialogButton } from "./components/ModalDialog.vue";
 import { LOCALES, locale, setLocale, t, type Locale } from "./i18n";
@@ -11,6 +11,7 @@ import type {
   DeviceEntry,
   DevOptionReport,
   EnvInfo,
+  ImageStatus,
   InstallOptions,
   InstallStatus,
   InstalledReport,
@@ -19,7 +20,7 @@ import type {
   VncSetup,
 } from "./types";
 
-type StepId = "env" | "device" | "avf" | "devenv" | "install" | "vnc";
+type StepId = "env" | "device" | "avf" | "devenv" | "image" | "install" | "vnc";
 
 type ThemeId = "blue" | "pink" | "dark";
 
@@ -31,7 +32,7 @@ interface DialogSpec {
   buttons: DialogButton[];
 }
 
-const stepIds: StepId[] = ["env", "device", "avf", "devenv", "install", "vnc"];
+const stepIds: StepId[] = ["env", "device", "avf", "devenv", "image", "install", "vnc"];
 const themeIds: ThemeId[] = ["blue", "pink", "dark"];
 
 const THEME_KEY = "acl.theme";
@@ -50,6 +51,7 @@ const serial = ref("");
 const avf = ref<AvfReport | null>(null);
 const devopts = ref<DevOptionReport | null>(null);
 const phase = ref<TerminalPhase>("unknown");
+const imageStatus = ref<ImageStatus | null>(null);
 const installed = ref<InstalledReport | null>(null);
 const detecting = ref(false);
 const install = ref<InstallStatus>({
@@ -75,6 +77,7 @@ const done = reactive<Record<StepId, boolean>>({
   device: false,
   avf: false,
   devenv: false,
+  image: false,
   install: false,
   vnc: false,
 });
@@ -83,6 +86,7 @@ const failed = reactive<Record<StepId, boolean>>({
   device: false,
   avf: false,
   devenv: false,
+  image: false,
   install: false,
   vnc: false,
 });
@@ -151,6 +155,9 @@ async function handleDialogAction(id: string) {
     case "retry-install":
       await startInstall();
       break;
+    case "retry-image":
+      await installImage();
+      break;
     case "continue-install":
       done.install = true;
       failed.install = false;
@@ -160,7 +167,7 @@ async function handleDialogAction(id: string) {
       current.value = 4;
       break;
     case "goto-vnc":
-      current.value = 5;
+      current.value = 6;
       break;
     case "open-avnc":
       await installAvnc();
@@ -436,8 +443,70 @@ async function refreshPhase() {
   if (!serial.value) return;
   try {
     phase.value = await api.terminalPhase(serial.value, adbPathInput.value.trim() || undefined);
+    if (phase.value === "ready") {
+      done.image = true;
+      failed.image = false;
+    }
   } catch {
     phase.value = "unknown";
+  }
+}
+
+/** 安装/启动 Linux 系统镜像（位于「Linux 开发环境」与「安装桌面环境」之间）。 */
+async function installImage() {
+  if (!serial.value) {
+    showDialog({
+      title: t("inst.noDeviceTitle"),
+      message: t("inst.noDeviceMsg"),
+      tone: "warn",
+      buttons: [{ id: "dismiss", label: t("btn.close") }],
+    });
+    return;
+  }
+  busy.value = true;
+  imageStatus.value = { phase: "unknown", ready: false, message: t("image.preparing") };
+  try {
+    const r = await api.installLinuxImage(
+      serial.value,
+      adbPathInput.value.trim() || undefined,
+    );
+    imageStatus.value = r;
+    phase.value = r.phase;
+    if (!r.ready) {
+      failed.image = true;
+      showDialog({
+        title: t("image.incompleteTitle"),
+        message: r.message,
+        tone: "warn",
+        buttons: [
+          { id: "retry-image", label: t("btn.retry"), primary: true },
+          { id: "dismiss", label: t("btn.close") },
+        ],
+      });
+      return;
+    }
+    done.image = true;
+    failed.image = false;
+    current.value = Math.max(current.value, 5);
+    showDialog({
+      title: t("image.doneTitle"),
+      message: t("image.doneMsg"),
+      tone: "success",
+      buttons: [{ id: "dismiss", label: t("btn.continueInstall"), primary: true }],
+    });
+  } catch (e) {
+    failed.image = true;
+    showDialog({
+      title: t("image.failTitle"),
+      message: String(e),
+      tone: "error",
+      buttons: [
+        { id: "retry-image", label: t("btn.retry"), primary: true },
+        { id: "dismiss", label: t("btn.close") },
+      ],
+    });
+  } finally {
+    busy.value = false;
   }
 }
 
@@ -469,7 +538,7 @@ async function detectInstalled(silent = false) {
 function skipToVnc() {
   done.install = true;
   failed.install = false;
-  current.value = 5;
+  current.value = 6;
 }
 
 async function startInstall() {
@@ -700,6 +769,13 @@ onMounted(async () => {
   applyTitle();
   unlisteners.push(await onInstallLog((line) => logs.value.push(line)));
   unlisteners.push(
+    await onImageProgress((s) => {
+      imageStatus.value = s;
+      phase.value = s.phase;
+      if (s.message) logs.value.push(`▶ ${s.message}`);
+    }),
+  );
+  unlisteners.push(
     await onVncProgress((msg) => {
       vncProgress.value = msg;
       logs.value.push(msg);
@@ -719,7 +795,7 @@ onMounted(async () => {
         done.install = true;
         failed.install = false;
         // 安装完成直接进入「远程桌面」，弹窗只是提示
-        current.value = 5;
+        current.value = 6;
         showDialog({
           title: t("inst.doneTitle"),
           message: t("inst.doneMsg"),
@@ -755,8 +831,10 @@ function goTo(i: number) {
   const prevDone = i > 0 && done[stepIds[i - 1]];
   if (i <= current.value || done[stepIds[i]] || prevDone) {
     current.value = i;
+    // 进入「安装 Linux 系统」步骤时先刷新一次终端状态
+    if (i === 4 && serial.value) void refreshPhase();
     // 进入安装步骤时先看看虚拟机里是不是已经装过了
-    if (i === 4 && !installed.value && serial.value) void detectInstalled(true);
+    if (i === 5 && !installed.value && serial.value) void detectInstalled(true);
   }
 }
 
@@ -950,8 +1028,39 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           </div>
         </section>
 
-        <!-- 步骤 5：安装 -->
+        <!-- 步骤 5：安装 Linux 系统 -->
         <section v-if="current === 4" class="card">
+          <h2>{{ t("image.title") }}</h2>
+          <p class="lead">{{ t("image.lead") }}</p>
+          <div class="kv">
+            <div><span>{{ t("image.phase") }}</span><code>{{ phaseLabel }}</code></div>
+            <div v-if="imageStatus?.message">
+              <span>{{ t("image.progress") }}</span><code>{{ imageStatus.message }}</code>
+            </div>
+          </div>
+          <ul class="notes">
+            <li>{{ t("image.note1") }}</li>
+            <li>{{ t("image.note2") }}</li>
+          </ul>
+          <div class="actions">
+            <button class="btn primary" :disabled="busy || !serial" @click="installImage()">
+              {{ busy ? t("image.working") : t("image.start") }}
+            </button>
+            <button class="btn ghost" :disabled="busy || !serial" @click="refreshPhase()">
+              {{ t("btn.refresh") }}
+            </button>
+            <button
+              class="btn ghost"
+              :disabled="busy || imageStatus?.phase !== 'ready'"
+              @click="current = 5"
+            >
+              {{ t("btn.continueInstall") }}
+            </button>
+          </div>
+        </section>
+
+        <!-- 步骤 6：安装 -->
+        <section v-if="current === 5" class="card">
           <h2>{{ t("inst.title") }}</h2>
           <p class="lead">{{ t("inst.lead") }}</p>
 
@@ -1070,8 +1179,8 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           </div>
         </section>
 
-        <!-- 步骤 6：VNC -->
-        <section v-if="current === 5" class="card">
+        <!-- 步骤 7：VNC -->
+        <section v-if="current === 6" class="card">
           <h2>{{ t("vnc.title") }}</h2>
           <p class="lead">{{ t("vnc.lead") }}</p>
           <div v-if="portResult" class="kv">

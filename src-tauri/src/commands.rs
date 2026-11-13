@@ -209,6 +209,25 @@ pub async fn terminal_phase(
     terminal::phase(&adb).await.map_err(|e| e.to_string())
 }
 
+/// 「安装 Linux 系统」步骤：授权、打开 Terminal、必要时点安装、等待终端就绪。
+#[tauri::command]
+pub async fn install_linux_image(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+) -> Result<terminal::ImageStatus, String> {
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    let handle = app.clone();
+    let mut emit = move |status: terminal::ImageStatus| {
+        use tauri::Emitter;
+        let _ = handle.emit("image-progress", status);
+    };
+    terminal::install_image(&adb, &mut emit)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 打开 Linux Terminal 应用。
 #[tauri::command]
 pub async fn open_terminal(
@@ -217,6 +236,8 @@ pub async fn open_terminal(
     adb_path: Option<String>,
 ) -> Result<(), String> {
     let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    // 打开 Terminal 之前先授予录音与通知权限，避免权限弹窗挡住安装引导页
+    terminal::grant_permissions(&adb).await;
     terminal::open(&adb).await.map_err(|e| e.to_string())
 }
 

@@ -94,15 +94,20 @@ pub fn phase_from_nodes(nodes: &[UiNode]) -> TerminalPhase {
     if uia::find_by_id(nodes, "installer_progress").is_some() {
         return TerminalPhase::Installing;
     }
+    // 引导页文案随系统语言变化：英文 "Would you like to proceed?" /
+    // "Download roughly ... MB"，中文 "是否要继续？" / "需要下载约 ... MB"。
     let asks_to_download = nodes.iter().any(|n| {
         let t = n.text.to_lowercase();
-        t.contains("would you like to proceed") || t.contains("download roughly")
-            || (t.contains("需要下载") && t.contains("mb"))
+        t.contains("would you like to proceed")
+            || t.contains("download roughly")
+            || (t.contains("mb") && (t.contains("下载") || t.contains("download")))
+            || t.contains("是否要继续")
+            || t.contains("是否继续")
     });
     if asks_to_download {
         let install_btn = nodes.iter().find(|n| {
             let t = n.text.trim().to_lowercase();
-            t == "install" || t == "安装" || t == "install now"
+            t == "install" || t == "安装" || t == "install now" || t == "立即安装"
         });
         return match install_btn {
             Some(n) if n.enabled => TerminalPhase::NeedsInstall,
@@ -170,8 +175,23 @@ pub async fn tap_install(adb: &Adb) -> Result<bool> {
         uia::tap_node(adb, btn).await?;
         return Ok(true);
     }
-    // 新版 Compose 界面没有 id，按文本找
-    for label in ["Install", "安装", "INSTALL", "Install now"] {
+    // 新版 Compose 界面没有 id，按文本找（系统语言可能是中文或英文）
+    for label in ["Install", "安装", "INSTALL", "Install now", "立即安装"] {
+        if let Some(btn) = nodes
+            .iter()
+            .find(|n| n.text.trim().eq_ignore_ascii_case(label))
+        {
+            uia::tap_node(adb, btn).await?;
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// 点掉安装确认对话框上的「继续 / 下载 / 确定」（部分系统版本会再确认一次）。
+pub async fn tap_install_confirm(adb: &Adb) -> Result<bool> {
+    let nodes = uia::dump(adb).await?;
+    for label in ["Continue", "Download", "OK", "继续", "下载", "确定", "确认"] {
         if let Some(btn) = nodes
             .iter()
             .find(|n| n.text.trim().eq_ignore_ascii_case(label))
@@ -207,6 +227,133 @@ pub async fn wait_ready(adb: &Adb, timeout_secs: u64) -> Result<TerminalPhase> {
         tokio::time::sleep(Duration::from_millis(1500)).await;
     }
     Ok(last)
+}
+
+/// 预先授予 Terminal 应用「录音」与「通知」权限。
+///
+/// Terminal 首次启动时会弹权限框，挡住「安装 Linux」引导页；纯 UI 点击容易漏。
+/// 用 `pm grant` 直接授予最可靠。未声明的权限（老版本没有 POST_NOTIFICATIONS）
+/// 会报错，忽略即可。
+pub async fn grant_permissions(adb: &Adb) -> Vec<String> {
+    let pkg = crate::detect::TERMINAL_PKG;
+    let mut granted = Vec::new();
+    for perm in [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS",
+    ] {
+        if adb
+            .shell(&format!("pm grant {} {}", pkg, perm))
+            .await
+            .is_ok()
+        {
+            granted.push(perm.to_string());
+        }
+    }
+    granted
+}
+
+/// Linux 系统镜像安装/启动的进度。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageStatus {
+    pub phase: TerminalPhase,
+    pub ready: bool,
+    pub message: String,
+}
+
+/// 「安装 Linux 系统」步骤：授权 → 打开 Terminal → 必要时点安装 → 等到终端就绪。
+///
+/// 这是「Linux 开发环境」与「安装桌面环境」之间的独立工作流：
+/// 系统镜像（约 600 MB）下载 + 虚拟机首次启动可能要很久，单独作为一步
+/// 可以让用户看清进度，也避免混在桌面安装的进度里。
+pub async fn install_image(
+    adb: &Adb,
+    emit: &mut (dyn FnMut(ImageStatus) + Send),
+) -> Result<ImageStatus> {
+    let status = |phase: TerminalPhase, message: &str| ImageStatus {
+        phase,
+        ready: phase == TerminalPhase::Ready,
+        message: message.to_string(),
+    };
+
+    emit(status(TerminalPhase::Unknown, "正在授予录音与通知权限..."));
+    let granted = grant_permissions(adb).await;
+    if !granted.is_empty() {
+        emit(status(
+            TerminalPhase::Unknown,
+            &format!("已授予权限：{}", granted.join("、")),
+        ));
+    }
+
+    emit(status(TerminalPhase::Unknown, "正在打开 Terminal 应用..."));
+    open(adb).await?;
+    // 授权已经覆盖大部分弹窗，这里再兜底点一次
+    let _ = dismiss_permission_dialogs(adb).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+    let mut current_phase = phase(adb).await.unwrap_or(TerminalPhase::Unknown);
+    let mut needs_image = current_phase == TerminalPhase::NeedsInstall;
+    if needs_image {
+        emit(status(
+            current_phase,
+            "正在安装 Linux 系统镜像（约 600 MB，请保持网络畅通）...",
+        ));
+        if !tap_install(adb).await? {
+            bail!(
+                "Terminal 显示了安装引导页，但没能找到「安装」按钮。\n\
+                 请在手机上手动点击安装，等终端出现命令行提示符后重试。"
+            );
+        }
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        // 中文界面下点「安装」之后还可能弹一个「继续/下载」确认框
+        let _ = tap_install_confirm(adb).await;
+    }
+
+    let timeout_secs = if needs_image { 3600 } else { 600 };
+    let deadline = std::time::Instant::now() + Duration::from_secs(timeout_secs);
+    let mut last_message = String::new();
+    let mut unknown_streak = 0u32;
+
+    while std::time::Instant::now() < deadline {
+        current_phase = phase(adb).await.unwrap_or(TerminalPhase::Unknown);
+        let message = match current_phase {
+            TerminalPhase::Ready => "Linux 终端已就绪。",
+            TerminalPhase::NeedsInstall => "等待在手机上确认下载 Linux 系统镜像...",
+            TerminalPhase::Installing => {
+                "正在下载并安装 Linux 系统镜像，请保持屏幕唤醒与网络畅通..."
+            }
+            TerminalPhase::Booting => "Linux 虚拟机正在启动...",
+            TerminalPhase::NotInstalled => bail!("未安装 Linux Terminal 应用。"),
+            TerminalPhase::Unknown => "正在等待 Terminal 界面...",
+        };
+        if message != last_message {
+            emit(status(current_phase, message));
+            last_message = message.to_string();
+        }
+        if current_phase == TerminalPhase::Ready {
+            return Ok(status(current_phase, "Linux 终端已就绪，可以继续安装桌面环境。"));
+        }
+        if current_phase == TerminalPhase::NeedsInstall && !needs_image {
+            // 用户在安装过程中取消了引导页，再点一次
+            needs_image = tap_install(adb).await.unwrap_or(false);
+        }
+        if current_phase == TerminalPhase::Unknown {
+            unknown_streak += 1;
+            if unknown_streak % 10 == 0 {
+                // 界面被切走（比如用户回到了桌面），重新拉回前台
+                let _ = open(adb).await;
+            }
+        } else {
+            unknown_streak = 0;
+        }
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+    }
+
+    bail!(
+        "等待 Linux 系统镜像安装超时（当前状态：{}）。\n\
+         请确认手机保持联网、屏幕未休眠，安装完成后再重试。",
+        current_phase.label()
+    )
 }
 
 /// 读取输入法服务（InputMethodService）的状态。

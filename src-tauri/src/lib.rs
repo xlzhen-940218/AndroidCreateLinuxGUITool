@@ -625,6 +625,7 @@ pub fn run() {
             commands::scan_security,
             commands::click_allow,
             commands::terminal_phase,
+            commands::install_linux_image,
             commands::open_terminal,
             commands::detect_installed,
             commands::run_install,

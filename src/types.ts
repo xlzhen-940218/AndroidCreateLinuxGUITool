@@ -63,6 +63,13 @@ export type TerminalPhase =
   | "ready"
   | "unknown";
 
+/** 「安装 Linux 系统」步骤的进度。 */
+export interface ImageStatus {
+  phase: TerminalPhase;
+  ready: boolean;
+  message: string;
+}
+
 export interface InstallOptions {
   desktop: string;
   cnMirror: boolean;

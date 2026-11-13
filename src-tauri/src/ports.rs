@@ -91,14 +91,18 @@ pub async fn device_listens_on(adb: &Adb, port: u16) -> bool {
 /// 因此先按端口文本定位通知行，再在行内找按钮。
 pub async fn enable_port_via_notification(adb: &Adb, port: u16) -> Result<bool> {
     let port_str = port.to_string();
-    const ACCEPT_LABELS: [&str; 8] = [
+    const ACCEPT_LABELS: [&str; 12] = [
         "Allow always",
         "Allow once",
         "Accept",
         "Allow",
         "ALLOW",
+        "始终允许",
+        "仅允许一次",
+        "允许一次",
         "允许",
         "接受",
+        "确定",
         "OK",
     ];
 
@@ -112,13 +116,17 @@ pub async fn enable_port_via_notification(adb: &Adb, port: u16) -> Result<bool> 
 
         let nodes = uia::dump(adb).await?;
 
-        // 找到提到了目标端口的文本节点
+        // 找到提到了目标端口的文本节点（系统语言可能是中文或英文）
         let port_node = nodes.iter().find(|n| {
             let t = format!("{} {}", n.text, n.desc);
+            let lower = t.to_lowercase();
             t.contains(&port_str)
-                && (t.to_lowercase().contains("port")
-                    || t.to_lowercase().contains("forward")
-                    || t.to_lowercase().contains("open"))
+                && (lower.contains("port")
+                    || lower.contains("forward")
+                    || lower.contains("open")
+                    || t.contains("端口")
+                    || t.contains("转发")
+                    || t.contains("打开"))
         });
 
         let Some(port_node) = port_node else {
@@ -154,7 +162,8 @@ pub async fn enable_port_via_notification(adb: &Adb, port: u16) -> Result<bool> 
                 let after = uia::dump(adb).await.unwrap_or_default();
                 let still_there = after.iter().any(|n| {
                     let t = format!("{} {}", n.text, n.desc);
-                    t.contains(&port_str) && t.to_lowercase().contains("port")
+                    t.contains(&port_str)
+                        && (t.to_lowercase().contains("port") || t.contains("端口"))
                 });
                 adb.raw(&["shell", "cmd statusbar collapse"]).await?;
                 if !still_there {
@@ -263,12 +272,23 @@ async fn open_security_page_once(adb: &Adb) -> Result<()> {
     tokio::time::sleep(Duration::from_millis(1600)).await;
 
     // 4) 确认真的到了安全页
+    // 条目文案随系统语言变化：英文 Port control / Listening ports /
+    // Auto-forward all ports / Saved allowed ports，中文
+    // 端口控制 / 正在监听的端口 / 自动转发所有端口 / 已保存的允许端口。
     let nodes = dump_retry(adb, 3).await?;
     let on_security = nodes.iter().any(|n| {
-        let t = n.text.trim();
-        t.eq_ignore_ascii_case("Port control")
-            || t.eq_ignore_ascii_case("Listening ports")
-            || t.eq_ignore_ascii_case("Auto-forward all ports")
+        let t = format!("{} {}", n.text, n.desc).to_lowercase();
+        let en = t.contains("port")
+            && (t.contains("control")
+                || t.contains("listening")
+                || t.contains("forward")
+                || t.contains("allowed"));
+        let zh = t.contains("端口")
+            && (t.contains("控制")
+                || t.contains("监听")
+                || t.contains("转发")
+                || t.contains("允许"));
+        en || zh
     });
     if !on_security {
         bail!("未能进入 Terminal 的「设置 → 安全」页面。");
@@ -360,8 +380,16 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
     // 情况 3：没有该端口 → 点右下角「+」新增
     let add_btn = nodes
         .iter()
-        .find(|n| n.desc.trim().eq_ignore_ascii_case("add"))
-        .or_else(|| uia::find_by_text(&nodes, "Add"))
+        .find(|n| {
+            let d = n.desc.trim();
+            let t = n.text.trim();
+            d.eq_ignore_ascii_case("add")
+                || d == "添加"
+                || d == "新增"
+                || t.eq_ignore_ascii_case("add")
+                || t == "添加"
+                || t == "新增"
+        })
         .ok_or_else(|| anyhow!("未能在安全页找到「添加端口」按钮（+）。"))?;
     uia::tap_node(adb, add_btn).await?;
     tokio::time::sleep(Duration::from_millis(900)).await;
@@ -381,7 +409,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
         .iter()
         .find(|n| {
             let t = n.text.trim();
-            t.eq_ignore_ascii_case("save") || t == "保存"
+            t.eq_ignore_ascii_case("save") || t == "保存" || t == "确定" || t == "OK"
         })
         .cloned();
     match save {

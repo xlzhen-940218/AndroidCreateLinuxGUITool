@@ -566,6 +566,8 @@ pub async fn prepare_core(
 
     set("preparing", "正在启动 Linux Terminal 应用...", "");
 
+    // 先授权，避免首次启动的录音/通知权限弹窗挡住安装引导页
+    terminal::grant_permissions(adb).await;
     terminal::open(adb).await?;
     // 首次运行可能弹出权限申请，自动放行
     let _ = terminal::dismiss_permission_dialogs(adb).await;
