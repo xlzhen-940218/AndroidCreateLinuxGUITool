@@ -256,29 +256,23 @@ if [ -n "$VNC_PASSWORD" ]; then
     # Debian 13 的 TigerVNC 使用 XDG 路径（~/.config/tigervnc/），
     # 旧版本用 ~/.vnc/；两个位置都写，避免版本差异。
     mkdir -p "$HOME/.vnc" "$HOME/.config/tigervnc"
+    command -v vncpasswd > /dev/null 2>&1 || fail "找不到 vncpasswd，无法设置 VNC 密码。"
     for PW_DIR in "$HOME/.vnc" "$HOME/.config/tigervnc"; do
         PW_FILE="$PW_DIR/passwd"
-        printf '%s\n%s\n' "$VNC_PASSWORD" "$VNC_PASSWORD" | vncpasswd "$PW_FILE" > /dev/null 2>&1 || true
-        PW_SIZE=$(wc -c < "$PW_FILE" 2>/dev/null | tr -d ' ')
-        if [ "$PW_SIZE" != "8" ]; then
-            echo "[提示] vncpasswd 不可用，改用内置方式写入密码文件..."
-            PW_BYTES=$(printf '%s' "$VNC_PASSWORD" | od -An -tu1 -N8 | tr -s ' \n' ' ')
-            printf '%s\n' "$PW_BYTES" | awk '{
-                for (i = 1; i <= 8; i++) {
-                    c = (i <= NF) ? $i : 0; r = 0;
-                    for (j = 0; j < 8; j++) { r = r * 2 + (c % 2); c = int(c / 2); }
-                    printf "%c", r;
-                }
-            }' > "$PW_FILE"
+        # 必须用 -f：从 stdin 读密码，把混淆后的 8 字节直接写到 stdout。
+        # 交互模式要求密码 ≥6 字符，还会追问一次 view-only 密码；非交互执行时
+        # 会一直重试到 EOF 并退出，旧文件被原样保留 —— 服务端解出的密码就是错的，
+        # 表现就是客户端"认证失败"。
+        rm -f "$PW_FILE"
+        printf '%s\n' "$VNC_PASSWORD" | vncpasswd -f > "$PW_FILE" 2>/dev/null || true
+        if [ "$(wc -c < "$PW_FILE" 2>/dev/null | tr -d ' ')" != "8" ]; then
+            rm -f "$PW_FILE"
+            fail "生成 VNC 密码文件失败（vncpasswd -f 未输出 8 字节）。"
         fi
         # TigerVNC 强制要求密码文件权限为 0600，否则拒绝启动
         chmod 600 "$PW_FILE" 2>/dev/null || true
     done
-    if [ "$(wc -c < "$HOME/.config/tigervnc/passwd" 2>/dev/null | tr -d ' ')" = "8" ]; then
-        echo "VNC 密码已设置。"
-    else
-        echo "[警告] VNC 密码文件创建失败，VNC 将可能不校验密码。"
-    fi
+    echo "VNC 密码已设置。"
 fi
 
 mkdir -p "$HOME/.vnc" "$HOME/.config/tigervnc"
@@ -288,6 +282,9 @@ session=$ACTUAL_SESSION
 geometry=$VNC_GEOMETRY
 localhost=no
 alwaysshared
+# 只提供 VncAuth：否则服务端还会广播 VeNCrypt(19)，部分客户端会先尝试
+# VeNCrypt 并用用户名+密码的方式认证，直接报"认证失败"。
+SecurityTypes=VncAuth
 EOF
 cp "$HOME/.vnc/config" "$HOME/.config/tigervnc/config" 2>/dev/null || true
 

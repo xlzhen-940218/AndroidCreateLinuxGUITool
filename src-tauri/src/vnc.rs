@@ -1,6 +1,8 @@
 //! VNC 相关：端口转发、TigerVNC 客户端下载/启动、AVNC 引导。
 
 use anyhow::{anyhow, bail, Result};
+use cipher::{generic_array::GenericArray, BlockEncrypt, KeyInit};
+use des::Des;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -19,7 +21,6 @@ const BUNDLED_AVNC_APK: &[u8] = include_bytes!("../resources/avnc.apk");
 const BUNDLED_AVNC_TAG: &str = "3.3.1";
 /// 随程序内置的 TigerVNC Viewer（官方免安装独立版 1.16.0，离线可用）。
 const BUNDLED_VIEWER: &[u8] = include_bytes!("../resources/vncviewer.exe");
-pub const BUNDLED_VIEWER_VERSION: &str = "1.16.0";
 pub const TIGERVNC_DOWNLOAD_URL: &str = "https://tigervnc.org/download/";
 
 /// TigerVNC 查看器候选版本（新 → 旧）。
@@ -371,16 +372,33 @@ pub async fn launch_tigervnc_at(
 
 /// 生成 TigerVNC 的 passwd 文件内容。
 ///
-/// TigerVNC 存的不是加密密文，而是**每个字节按位取反后的密码**
-/// （不足 8 字节补 0，只有前 8 个字符有效）——这正是 VNC 认证里 DES 的密钥形式。
-/// 所以 PC 端可以直接算出与虚拟机里 `vncpasswd` 生成的一模一样的文件。
+/// TigerVNC 1.13+ 的密码文件不是明文，也不是旧版那种"每字节按位取反"，
+/// 而是把密码补 0 到 8 字节后，用固定密钥 `{23,82,107,6,35,78,88,7}`
+/// 做一次 DES 加密（见 TigerVNC `common/rfb/obfuscate.cxx`）。
 ///
-/// 例：密码 `linux` → `36 96 76 ae 1e 00 00 00`（真机已核对）。
+/// 注意 d3des 的字节位序与标准 DES 相反（它忽略的是每个字节的最高位），
+/// 所以实际参与运算的密钥要先逐字节按位取反。
+///
+/// 实测：密码 `linux` → `54 6d 3b 7b 9a 13 56 cc`（真机 `vncpasswd -f` 输出）。
 pub fn vnc_passwd_bytes(password: &str) -> [u8; 8] {
-    let mut out = [0u8; 8];
-    for (i, b) in password.as_bytes().iter().take(8).enumerate() {
-        out[i] = b.reverse_bits();
+    const OBFUSCATION_KEY: [u8; 8] = [23, 82, 107, 6, 35, 78, 88, 7];
+
+    let mut key = OBFUSCATION_KEY;
+    for b in key.iter_mut() {
+        *b = b.reverse_bits();
     }
+
+    let mut plain = [0u8; 8];
+    for (i, b) in password.as_bytes().iter().take(8).enumerate() {
+        plain[i] = *b;
+    }
+
+    let cipher = Des::new(GenericArray::from_slice(&key));
+    let mut block = GenericArray::clone_from_slice(&plain);
+    cipher.encrypt_block(&mut block);
+
+    let mut out = [0u8; 8];
+    out.copy_from_slice(&block);
     out
 }
 
@@ -689,4 +707,20 @@ pub fn open_url(url: &str) -> Result<()> {
     cmd.spawn()
         .map(|_| ())
         .map_err(|e| anyhow!("打开链接失败: {}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::vnc_passwd_bytes;
+
+    #[test]
+    fn passwd_file_matches_tigervnc() {
+        // 真机执行 `printf 'linux\n' | vncpasswd -f` 得到的 8 字节
+        assert_eq!(
+            vnc_passwd_bytes("linux"),
+            [0x54, 0x6d, 0x3b, 0x7b, 0x9a, 0x13, 0x56, 0xcc]
+        );
+        // 超过 8 个字符只取前 8 个，不足补 0
+        assert_eq!(vnc_passwd_bytes("123456789"), vnc_passwd_bytes("12345678"));
+    }
 }
