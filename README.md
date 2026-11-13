@@ -1,143 +1,178 @@
 # AndroidCreateLinuxGUITool
 
-在 **Android 16+（支持 AVF 虚拟化框架）** 的手机上，一键装好 Debian 桌面环境（默认 XFCE），
-并在 Windows 电脑上通过 TigerVNC 远程访问。全程图形界面引导，不需要在手机上手动敲命令。
+Turn an Android 16+ phone that supports **AVF (Android Virtualization Framework)** into a usable Debian desktop —
+with a Windows GUI that drives everything over ADB. No commands typed on the phone.
 
-- 技术栈：Rust + Tauri v2 + Vue 3 + Vite
-- 目标设备：Pixel 等支持 AVF（Android Virtualization Framework）的 Android 16 及以上机型
-- 虚拟机：Debian 12 / 13（由手机自带的 Linux Terminal 应用提供）
+**English** | [简体中文](README.zh-CN.md)
 
-## 功能
+![Main window](docs/images/gui-main.png)
 
-| 步骤 | 内容 |
-| --- | --- |
-| 1. 环境准备 | 自动定位 `adb`，找不到时可手动指定 `adb.exe` 路径 |
-| 2. 设备检测 | 检测已连接且已授权 USB 调试的设备，未连接时弹窗引导 |
-| 3. 虚拟化检测 | 检查 `virtualization_framework` 特性与 `vm info`，不支持的机型直接提示 |
-| 4. Linux 开发环境 | 在开发者选项中自动找到并打开「Linux 开发环境」开关（中英文界面），遇到企业策略 / 三星 Secure Folder 等限制时给出提示 |
-| 5. 安装桌面环境 | 唤起 Linux Terminal，按需自动安装系统镜像，随后执行桌面安装脚本；支持中国用户切换国内镜像源，支持失败重试（脚本幂等） |
-| 6. 远程桌面 | 放行 Terminal 的 VNC 端口、建立 `adb forward 5901`、自动下载并打开 TigerVNC；并可为手机自动下载安装 AVNC 客户端 |
+<p align="center"><em>10-step workflow: device detection → Linux VM → system base → desktop → apps → VNC → remote desktop</em></p>
 
-安装过程中可以实时看到脚本输出（apt 日志、当前阶段、错误原因）。
+![Install progress](docs/images/gui-installing.png)
 
-## 环境要求
+<p align="center"><em>Live log from inside the VM, with per-stage progress and cancel/retry</em></p>
 
-- Windows 10/11（TigerVNC 自动下载仅支持 Windows；其他系统需自行安装查看器）
-- Android Platform Tools（`adb`），并确认 `adb devices` 能看到设备
-- 手机：Android 16+，支持 AVF；已在开发者选项中开启 USB 调试
-- 手机与电脑网络畅通，安装时手机保持**亮屏、解锁**（自动输入依赖软键盘，锁屏会导致输入被系统丢弃）
+## Highlights
 
-## 快速开始
+- **10 guided steps** — adb detection, device check, AVF check, Linux developer environment, system image, then four independent install stages and a remote desktop launcher.
+- **Fully automatic install** — opens the Linux development environment switch (English and Chinese system UI), installs the Terminal image when needed, and runs an idempotent setup script inside the VM.
+- **4 separate install stages** — system base / desktop / common apps / VNC service. If one stage fails you only rerun that stage; dpkg interrupted states are repaired automatically.
+- **Offline-ready bundled assets** — adb, TigerVNC viewer and the AVNC APK ship inside the app, so nothing has to be downloaded behind a firewall.
+- **7 UI languages** (Chinese, English, German, French, Spanish, Japanese, Korean) and 3 themes (light blue, light pink, near-black).
+- **Real-time progress, no screen scraping** — the script writes markers into a log file in the shared folder; the PC polls it over adb.
 
-直接运行发布版：
+## How it works
 
 ```text
-src-tauri\target\release\android-create-linux-gui-tool.exe
+Windows GUI ──adb push──▶ phone shared storage ──virtiofs──▶ /mnt/shared inside Debian
+      ▲                                                              │
+      └──────────── adb shell cat acl_install.log ◀──────────────────┘
 ```
 
-然后按左侧 6 个步骤依次操作即可。
+The GUI renders `install-desktop.sh`, injects your options, pushes it to the phone's shared folder and
+executes it in the Terminal app. Progress (`@@STEP:` / `@@RESULT:`) and failures are read back from
+`acl_install.log`, so the UI never has to read the screen.
 
-### 第 5 步说明
+## The 10 steps
 
-- 进入本步骤或点「立即检测」时，会先在虚拟机内做一次只读检查，显示已安装的**桌面环境 / 常用软件 / 中文输入法 / TigerVNC**；已装过会提示「无需重复安装」，可直接前往远程桌面，按钮会变成「重新安装 / 补装组件」。
-- 首次使用若 Terminal 尚未安装系统镜像（约 600 MB），工具会自动点击安装并等待就绪。
-- 会先询问是否为中国用户：选「是」将切换国内镜像源（TUNA）、设置中文语言与 Fcitx5 输入法；选「否」使用 Debian 官方源与英文环境。
-- 可选桌面：XFCE（默认，约 1.2 GB）、GNOME、KDE Plasma、MATE、Cinnamon、LXQt、LXDE、GNOME Flashback。
-- 进度通过共享目录日志回传（虚拟机内 `/mnt/shared` 对应手机存储根目录），日志文件为 `acl_install.log`。
-- 安装脚本幂等，中途失败可以放心重试。
+| # | Step | What it does |
+| --- | --- | --- |
+| 1 | Environment | Locates `adb` (bundled copy first, manual path as fallback) |
+| 2 | Device | Finds a connected, authorized device; guides you when none is present |
+| 3 | Virtualization | Checks `virtualization_framework` and `vm info`; unsupported models are reported early |
+| 4 | Linux developer environment | Opens the "Linux development environment" switch in Developer options (English + Chinese UI), explains enterprise-policy / Secure Folder restrictions |
+| 5 | Install Linux system | Launches the Terminal app, installs the system image (~600 MB) when missing, grants microphone/notification permissions |
+| 6 | System base | Repairs interrupted dpkg state, switches to a China mirror (optional), `apt update/upgrade`, Chinese locale + CJK fonts, SSH on port 10022, shared-folder mount |
+| 7 | Desktop environment | Installs the desktop you pick: XFCE (default), GNOME, KDE Plasma, MATE, Cinnamon, LXQt, LXDE, GNOME Flashback |
+| 8 | Common apps | Optional app suite and the Fcitx5 Chinese input method |
+| 9 | VNC service | Installs and configures TigerVNC, writes the password file, starts the `:1` session (port 5901) and verifies the window manager actually took over |
+| 10 | Remote desktop | Allows port 5901 in Terminal → ⋮ → Settings → Security, runs `adb forward`, opens TigerVNC, and can install AVNC on the phone |
 
-### 第 6 步说明
+Stages 6–9 are the old single "install desktop" step, split so each one is short, restartable and easy to debug.
 
-- 默认 VNC 密码 `linux`，显示号 `:1`（端口 5901），分辨率 `1920x1080`，SSH 端口 `10022`。
-- 「放行端口并一键打开 TigerVNC」：自动完成 Terminal 端口放行、`adb forward tcp:5901`、启动本机 TigerVNC 并自动填入地址与密码。
-- 本机没有 TigerVNC 时，会自动下载官方免安装版到 `%LOCALAPPDATA%\AndroidCreateLinuxGUITool\vncviewer.exe`。
-- 「安装 AVNC（手机端）」：优先使用**程序内置的 AVNC 3.3.1 安装包**（不依赖网络，国内可用）安装到手机；内置包安装失败时才回退到 GitHub 下载最新版。连接参数为地址 `127.0.0.1`、端口 `5901`、用户名可留空（填 `droid` 也可）、密码为第 5 步设置的 VNC 密码（默认 `linux`）。
+## Requirements
 
-## 从源码构建
+- Windows 10/11 (bundled TigerVNC viewer and AVNC are Windows/Android specific)
+- Android Platform Tools are **not** required — a working `adb` is bundled, but you can point the tool at your own `adb.exe`
+- Phone: Android 16+, AVF capable, USB debugging enabled
+- Phone must stay **unlocked and awake** while installing: command injection relies on the soft keyboard, and a locked screen silently drops input
+- ~2 GB of free space on the phone for Debian packages
 
-前置：Node.js 18+、Rust（stable）、Windows 上的 WebView2（Win10/11 自带）。
-Tauri 在 Windows 上还需要 MSVC 生成工具与 Windows SDK。
+## Quick start
+
+1. Connect the phone, unlock it, keep USB debugging on.
+2. Run the release build:
+
+   ```text
+   src-tauri\target\release\android-create-linux-gui-tool.exe
+   ```
+
+3. Walk through the steps on the left; each step unlocks the next one.
+
+Choosing "yes" to the China prompt in step 6 switches APT to the TUNA mirror and enables the Chinese
+locale and input method; choosing "no" keeps the official Debian sources and an English environment.
+
+### Step 6–9 notes
+
+- Every stage is idempotent. "Cancel" stops the run; pressing install again continues from the same stage.
+- Detected components (desktop / apps / IME / VNC / SSH) are shown before installing, so a second run can skip finished work.
+- Defaults: VNC password `linux`, display `:1` → port `5901`, geometry `1920x1080`, SSH port `10022`.
+
+### Step 10 notes
+
+- "Allow port and open TigerVNC" performs the port release, `adb forward tcp:5901`, then starts the bundled
+  viewer and fills in the address and password.
+- "Install AVNC" uses the bundled AVNC APK first and only falls back to GitHub if that fails.
+  Connect with `127.0.0.1:5901` and the VNC password from step 9 (username is optional, `droid` also works).
+
+## Build from source
+
+Prerequisites: Node.js 18+, stable Rust, WebView2 (included in Windows 10/11), MSVC build tools and the Windows SDK.
 
 ```bash
-# 安装前端依赖
 npm install
 
-# 开发模式（热更新）
+# dev with hot reload
 npm run tauri:dev
 
-# 发布构建
+# release build
 npm run build
 cd src-tauri
 cargo build --release --features custom-protocol
 ```
 
-产物位于 `src-tauri/target/release/android-create-linux-gui-tool.exe`。
+Output: `src-tauri/target/release/android-create-linux-gui-tool.exe`.
 
-## 命令行参数
+## Command line
 
-发布版 exe 同时提供诊断与无界面模式，便于排查问题：
-
-| 参数 | 作用 |
+| Argument | Purpose |
 | --- | --- |
-| `--diagnose` / `--diagnose-json` | 输出设备、AVF、开发者选项的检测报告 |
-| `--selftest` | 在真机上跑一遍核心链路（开启 Linux 环境、检测终端等） |
-| `--install` | 无界面完整执行安装流程 |
-| `--desktop=xfce` | 配合 `--install` 指定桌面环境 |
-| `--official-source` | 配合 `--install` 使用 Debian 官方源与英文环境 |
-| `--no-apps` | 配合 `--install` 跳过常用软件套件 |
-| `--fetch-viewer` | 只下载 TigerVNC Viewer（免安装版） |
-| `--port=5901` | 放行端口 + `adb forward` + 尝试打开 TigerVNC |
-| `--exec="<命令>"` | 在虚拟机终端里执行一条命令并取回输出 |
-
-示例：
+| `--diagnose` / `--diagnose-json` | Print a device / AVF / developer-options report |
+| `--selftest` | Exercise the core chain on a real device |
+| `--install` | Run the installer without the GUI |
+| `--stage=base\|desktop\|apps\|vncsvc` | With `--install`: run a single stage |
+| `--desktop=xfce` | With `--install`: pick the desktop |
+| `--official-source` | With `--install`: Debian official sources + English locale |
+| `--no-apps` | With `--install`: skip the common app suite |
+| `--fetch-viewer` | Download the portable TigerVNC viewer only |
+| `--port=5901` | Release the port, `adb forward`, and try to open TigerVNC |
+| `--exec="<command>"` | Run one command in the VM terminal and read the output |
 
 ```powershell
 .\android-create-linux-gui-tool.exe --diagnose
+.\android-create-linux-gui-tool.exe --install --stage=base
 .\android-create-linux-gui-tool.exe --exec="uname -a"
 ```
 
-## 项目结构
+## Project structure
 
 ```text
-├─ src/                        # 前端（Vue 3）
-│  ├─ App.vue                  # 6 步工作流主界面
-│  ├─ api.ts                   # Tauri command / 事件封装
-│  ├─ types.ts                 # 前后端共享类型
-│  └─ components/              # 日志面板、模态弹窗
+├─ src/                        # Vue 3 frontend
+│  ├─ App.vue                  # 10-step workflow UI
+│  ├─ api.ts                   # Tauri commands / events
+│  ├─ i18n.ts                  # 7 UI languages
+│  ├─ types.ts                 # shared types
+│  └─ components/              # log panel, modal dialog
 ├─ src-tauri/
 │  ├─ src/
-│  │  ├─ adb.rs                # adb 封装（定位、shell、push、forward）
-│  │  ├─ detect.rs             # 设备与 AVF 检测
-│  │  ├─ devopts.rs            # 开发者选项 / Linux 开发环境开关
-│  │  ├─ terminal.rs           # 驱动 Linux Terminal 应用（聚焦、输入命令）
-│  │  ├─ installer.rs          # 安装流程编排与日志轮询
-│  │  ├─ ports.rs              # VNC 端口放行
-│  │  ├─ vnc.rs                # TigerVNC 下载/启动、AVNC 安装、adb forward
-│  │  ├─ commands.rs           # 暴露给前端的 Tauri 命令
-│  │  └─ lib.rs / main.rs      # 应用入口与命令行模式
+│  │  ├─ adb.rs                # adb wrapper (locate, shell, push, forward)
+│  │  ├─ detect.rs             # device and AVF detection
+│  │  ├─ devopts.rs            # developer options / Linux environment switch
+│  │  ├─ terminal.rs           # drives the Terminal app (focus, type, tap)
+│  │  ├─ installer.rs          # per-stage orchestration and log polling
+│  │  ├─ ports.rs              # VNC port release
+│  │  ├─ vnc.rs                # TigerVNC launch, AVNC install, adb forward
+│  │  ├─ commands.rs           # Tauri commands exposed to the frontend
+│  │  └─ lib.rs / main.rs      # entry point and CLI modes
 │  └─ resources/
-│     └─ install-desktop.sh    # 在虚拟机内执行的桌面安装脚本
-└─ shots/shot.ps1              # 截图辅助脚本
+│     ├─ install-desktop.sh    # staged setup script executed inside the VM
+│     ├─ detect-installed.sh   # read-only environment probe
+│     ├─ adb.exe               # bundled adb
+│     ├─ vncviewer.exe         # bundled TigerVNC viewer
+│     └─ avnc.apk              # bundled Android VNC client
+├─ docs/images/                # README screenshots
+└─ shots/                      # capture helpers
 ```
 
-## 常见问题
+## Troubleshooting
 
-**卡在「命令似乎没有在终端中执行，正在重新聚焦后重试」**
-自动输入依赖手机当前是否弹出软键盘。请让手机保持亮屏解锁，必要时手动点一下 Terminal 的命令行区域，再点「重试」。
+**"The command does not seem to run in the terminal" / retry loop**
+Input injection needs the on-screen keyboard. Keep the phone unlocked and tap the Terminal command line once, then retry.
 
-**VNC 连上了但桌面黑屏**
-脚本已通过 `~/.xsessionrc` 强制 X11（虚拟机内的 Wayland 合成器不支持 layer-shell）。若仍是黑屏，在终端执行 `bash /mnt/shared/acl_install.sh` 重跑一次即可（脚本幂等）。
+**VNC connects but the desktop is black**
+The script forces X11 through `~/.xsessionrc`. Re-run `bash /mnt/shared/acl_install.sh vncsvc` in the Terminal; stale window-manager sessions are cleaned automatically.
 
-**点击左侧「远程桌面」没有反应**
-已修复：只要上一步完成即可进入下一步。请使用最新构建的 exe。
+**Install stopped at "Package configuration"**
+Older builds could stall in debconf. Current builds pass `DEBIAN_FRONTEND=noninteractive` through sudo and preseed keyboard-configuration; make sure you run the latest executable.
 
-**TigerVNC 打不开 / 未检测到**
-可点「打开 TigerVNC 官网」手动安装；或运行 `--fetch-viewer` 下载免安装版。
+**Port forwarding fails**
+Replug USB and check `adb devices`. You can also enable port 5901 manually: Terminal → ⋮ → Settings → Security → Listening ports (use the `+` button if it is not listed).
 
-**端口转发失败**
-确认手机与电脑的 adb 连接正常，重新插拔 USB 后再试；也可在手机上打开 Terminal → 右上角 ⋮ → Settings → Security，在「Listening ports」打开 5901 的开关（列表中没有时点右下角「+」添加）。
+**Device is reported as enterprise-managed**
+HyperOS/MIUI sometimes prints `no owners`; recent builds match this case-insensitively.
 
-## 免责声明
+## Disclaimer
 
-本工具会通过 adb 修改开发者选项并重启虚拟机内的服务，请在了解风险的前提下使用；
-安装脚本会占用约 2 GB 以上手机存储，并需要较长时间下载依赖包。
+The tool changes developer options over adb and restarts services inside the VM. Use it at your own risk;
+the installation needs roughly 2 GB of phone storage and a long download.
