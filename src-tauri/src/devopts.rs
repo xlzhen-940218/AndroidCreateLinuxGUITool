@@ -98,6 +98,42 @@ pub async fn enable_linux_env(adb: &Adb) -> Result<String> {
     Err(anyhow!("启用失败: {}", text.trim()))
 }
 
+/// 关闭 Android 的「幽灵进程」限制。
+///
+/// Android 12+ 会在后台进程数超过 `max_phantom_processes` 时直接杀掉子进程，
+/// AVF 虚拟机里正在执行的安装命令经常因此被中断。把上限调到最大并关闭监控，
+/// 虚拟机就不会被系统在后台回收。
+///
+/// 部分设备不允许 shell 修改这些配置，失败时只记录提示，不阻断主流程。
+pub async fn disable_phantom_killer(adb: &Adb) -> (bool, String) {
+    let mut failed = Vec::new();
+    let commands = [
+        "device_config put activity_manager max_phantom_processes 2147483647",
+        "settings put global settings_enable_monitor_phantom_procs false",
+    ];
+    for cmd in commands {
+        match adb.raw(&["shell", cmd]).await {
+            Ok(out) if out.ok() => {}
+            _ => failed.push(cmd),
+        }
+    }
+    if failed.is_empty() {
+        (
+            true,
+            "已关闭幽灵进程限制（max_phantom_processes=2147483647，settings_enable_monitor_phantom_procs=false）。"
+                .to_string(),
+        )
+    } else {
+        (
+            false,
+            format!(
+                "以下幽灵进程限制设置执行失败（设备可能禁止 shell 修改，可手动执行）：\n{}",
+                failed.join("\n")
+            ),
+        )
+    }
+}
+
 /// 检测企业锁（设备所有者 / 配置所有者）。
 pub async fn device_policy(adb: &Adb) -> (bool, String) {
     let out = adb

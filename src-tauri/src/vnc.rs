@@ -36,6 +36,10 @@ pub struct VncSetup {
     pub port: u16,
     pub forward_ok: bool,
     pub forward_detail: String,
+    /// 是否真的能连上 VNC 服务（完成 RFB 握手）。
+    pub reachable: bool,
+    /// 探测详情（成功或失败原因）。
+    pub probe_detail: String,
     pub viewer_found: bool,
     /// 客户端是本次自动下载得到的（而不是系统里本来就有的）。
     pub viewer_downloaded: bool,
@@ -44,6 +48,59 @@ pub struct VncSetup {
     pub connect_hint: String,
     pub message: String,
 }
+
+/// 探测 VNC 端口是否真的可用：读一下 RFB 握手串。
+///
+/// 链路是：本机 `127.0.0.1:<port>` → `adb forward` → 手机同端口 →
+/// Terminal 应用的端口转发 → 虚拟机里的 VNC 服务。手机上的 AVNC 走的是
+/// 后半段（手机 127.0.0.1:<port>），所以这个探测同样能验证 AVNC 能否连上。
+///
+/// `attempts` > 1 时会重试：端口刚放行或虚拟机刚启动时，转发链路可能还没生效。
+pub async fn probe_vnc(port: u16, attempts: u32) -> (bool, String) {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut last = String::new();
+    for i in 0..attempts {
+        let connect = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            tokio::net::TcpStream::connect(("127.0.0.1", port)),
+        )
+        .await;
+        match connect {
+            Err(_) => last = "连接超时".to_string(),
+            Ok(Err(e)) => last = format!("连接被拒绝或不可达：{}", e),
+            Ok(Ok(mut stream)) => {
+                let mut buf = [0u8; 12];
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    stream.read(&mut buf),
+                )
+                .await
+                {
+                    Ok(Ok(n)) if n > 0 => {
+                        let banner = String::from_utf8_lossy(&buf[..n]).trim().to_string();
+                        if banner.starts_with("RFB ") {
+                            let _ = stream.write_all(b"RFB 003.008\n").await;
+                            return (true, format!("VNC 握手成功（服务端版本 {}）", banner));
+                        }
+                        return (
+                            false,
+                            format!("端口有响应，但返回的不是 VNC 协议：{:?}", banner),
+                        );
+                    }
+                    Ok(Ok(_)) => last = "端口已连通，但服务端没有返回 VNC 握手数据".to_string(),
+                    Ok(Err(e)) => last = format!("读取握手数据失败：{}", e),
+                    Err(_) => last = "等待 VNC 握手超时".to_string(),
+                }
+            }
+        }
+        if i + 1 < attempts {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+    }
+    (false, last)
+}
+
 
 /// 工具自己的数据目录（存放自动下载的查看器）。
 pub fn tool_data_dir() -> PathBuf {
@@ -442,6 +499,41 @@ pub async fn setup_with(
     progress: &mut (dyn FnMut(String) + Send),
 ) -> Result<VncSetup> {
     let (forward_ok, forward_detail) = setup_forward(adb, port).await?;
+    let connect_hint = format!("127.0.0.1:{}", port);
+
+    // 先验证链路，再决定要不要拉起客户端：VNC 服务没起来时打开查看器
+    // 只会看到一个 "connection was dropped" 的错误框，反而误导用户。
+    progress("正在检测 VNC 服务是否可连接…".to_string());
+    let (reachable, probe_detail) = probe_vnc(port, 5).await;
+    if !forward_ok || !reachable {
+        let reason = if !forward_ok {
+            forward_detail.clone()
+        } else {
+            probe_detail.clone()
+        };
+        return Ok(VncSetup {
+            port,
+            forward_ok,
+            forward_detail,
+            reachable: false,
+            probe_detail,
+            viewer_found: find_tigervnc_viewer().is_some(),
+            viewer_downloaded: false,
+            viewer_path: String::new(),
+            viewer_launched: false,
+            connect_hint,
+            message: format!(
+                "端口转发已建立，但无法连接 127.0.0.1:{}：{}\n\n\
+                 常见原因：\n\
+                 1) 虚拟机里的 TigerVNC 没有启动 —— 请回到「TigerVNC 服务」步骤重跑，\n\
+                    并查看执行日志里的失败原因；\n\
+                 2) Terminal 应用没有放行 {} 端口 —— 打开 Terminal → 右上角 ⋮ →\n\
+                    Settings → Security，在 Listening ports 里打开该端口；\n\
+                 3) 端口刚放行、虚拟机转发尚未生效 —— 等几秒后重试。",
+                port, reason, port
+            ),
+        });
+    }
 
     // 客户端：优先用系统里已安装的，没有就自动下载免安装版
     let installed = find_tigervnc_viewer();
@@ -454,11 +546,13 @@ pub async fn setup_with(
                     port,
                     forward_ok,
                     forward_detail,
+                    reachable,
+                    probe_detail,
                     viewer_found: false,
                     viewer_downloaded: false,
                     viewer_path: String::new(),
                     viewer_launched: false,
-                    connect_hint: format!("127.0.0.1:{}", port),
+                    connect_hint,
                     message: format!(
                         "{}\n\n也可以先在手机上使用 AVNC 连接（地址 127.0.0.1，端口 {}，密码 {}）。",
                         e, port, password
@@ -473,9 +567,7 @@ pub async fn setup_with(
     let (launched, viewer_path, msg) =
         launch_tigervnc_at(&viewer_path, port, passwd_file.as_deref()).await?;
 
-    let message = if !forward_ok {
-        format!("{}（请先在 Terminal 应用中放行端口 {}）", forward_detail, port)
-    } else if downloaded {
+    let message = if downloaded {
         format!("{}（TigerVNC Viewer 已自动下载安装）", msg)
     } else {
         msg
@@ -485,11 +577,13 @@ pub async fn setup_with(
         port,
         forward_ok,
         forward_detail,
+        reachable,
+        probe_detail,
         viewer_found: !viewer_path.is_empty(),
         viewer_downloaded: downloaded,
         viewer_path,
         viewer_launched: launched,
-        connect_hint: format!("127.0.0.1:{}", port),
+        connect_hint,
         message,
     })
 }

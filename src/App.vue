@@ -317,6 +317,10 @@ async function refreshDevices() {
     serial.value = ready.serial;
     done.device = true;
     failed.device = false;
+    // 关闭幽灵进程限制：否则 Linux 虚拟机里的进程会被系统在后台清理
+    void api
+      .disablePhantomKiller(ready.serial, adbPathInput.value.trim() || undefined)
+      .catch(() => {});
     current.value = Math.max(current.value, 1);
     await runAvfCheck();
   } catch (e) {
@@ -605,12 +609,13 @@ async function detectInstalled(silent = false) {
 }
 
 /** 检测到已装好桌面时，跳过安装直接进入远程桌面。 */
-function skipToVnc() {
-  stageIds.forEach((id) => {
-    done[id] = true;
-    failed[id] = false;
-  });
-  current.value = stepIds.indexOf("vnc");
+/** 跳过当前安装阶段，直接进入下一步（只标记当前阶段完成）。 */
+function skipStage() {
+  const st = stageCurrent.value;
+  if (!st) return;
+  done[st] = true;
+  failed[st] = false;
+  current.value = Math.min(stageIndex(st) + 1, stepIds.length - 1);
 }
 
 async function startInstall(stage: StageId = activeStage.value) {
@@ -768,8 +773,22 @@ async function setupVnc() {
       options.vncPassword,
     );
     vnc.value = r;
-    done.vnc = r.forwardOk;
-    failed.vnc = !r.forwardOk;
+    const ok = r.forwardOk && r.reachable;
+    done.vnc = ok;
+    failed.vnc = !ok;
+    if (!ok) {
+      showDialog({
+        title: t("vnc.unreachableTitle"),
+        message: r.message,
+        tone: "error",
+        buttons: [
+          { id: "retry-port", label: t("btn.retry"), primary: true },
+          { id: "open-avnc", label: t("btn.installAvncPhone") },
+          { id: "dismiss", label: t("btn.close") },
+        ],
+      });
+      return;
+    }
     if (!r.viewerFound) {
       showDialog({
         title: t("vnc.viewerFailTitle"),
@@ -910,15 +929,13 @@ onUnmounted(() => {
 });
 
 function goTo(i: number) {
-  // 已完成的步骤可回看；只要前一步已完成，也允许进入下一步
-  const prevDone = i > 0 && done[stepIds[i - 1]];
-  if (i <= current.value || done[stepIds[i]] || prevDone) {
-    current.value = i;
-    // 进入「安装 Linux 系统」步骤时自动检测是否已安装
-    if (i === 4 && serial.value) void detectImage();
-    // 进入安装步骤时先看看虚拟机里是不是已经装过了
-    if (i === 5 && !installed.value && serial.value) void detectInstalled(true);
-  }
+  // 自由跳转：每个步骤都可以单独查看/重跑，不再受"上一步是否完成"限制。
+  // 安装阶段彼此独立，用户需要能直接回到没装好的那一步。
+  current.value = Math.max(0, Math.min(i, stepIds.length - 1));
+  // 进入「安装 Linux 系统」步骤时自动检测是否已安装
+  if (i === 4 && serial.value) void detectImage();
+  // 进入任一安装阶段时，先看看虚拟机里已经装了什么
+  if (i >= 5 && i <= 8 && serial.value && !installed.value) void detectInstalled(true);
 }
 
 function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
@@ -1267,7 +1284,7 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             class="detect-tip"
           >
             {{ t("inst.alreadyInstalled", { name: installed.desktopName }) }}
-            <button class="link" @click="skipToVnc()">{{ t("btn.skipToVnc") }}</button>
+            <button class="link" @click="skipStage()">{{ t("btn.skipStage") }}</button>
           </div>
 
           <div class="actions">
@@ -1297,6 +1314,10 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           </div>
           <div v-if="vnc" class="kv">
             <div><span>{{ t("vnc.forward") }}</span><code>{{ vnc.forwardDetail }}</code></div>
+            <div>
+              <span>{{ t("vnc.probe") }}</span>
+              <code>{{ vnc.reachable ? `${t("vnc.probeOk")} — ${vnc.probeDetail}` : `${t("vnc.probeFail")} — ${vnc.probeDetail}` }}</code>
+            </div>
             <div><span>{{ t("vnc.client") }}</span><code>{{ vnc.viewerPath || t("vnc.viewerMissing") }}</code></div>
             <div><span>{{ t("vnc.address") }}</span><code>{{ vnc.connectHint }}</code></div>
           </div>

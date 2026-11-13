@@ -117,6 +117,17 @@ case "$DESKTOP" in
     flashback) DESKTOP_NAME="GNOME Flashback"; SESSION_WANT="gnome-flashback-metacity"; SESSION_KEY="flashback"; TASK_NAME="gnome-flashback-desktop";  TASK_PACKAGES="gnome-flashback gnome-session-xsession" ;;
     *)         fail "未知的桌面环境类型: $DESKTOP" ;;
 esac
+# 兜底直接用 Xtigervnc 启动时，xstartup 里要执行的会话命令
+case "$DESKTOP" in
+    kde)       SESSION_CMD="startplasma-x11" ;;
+    gnome)     SESSION_CMD="gnome-session" ;;
+    xfce)      SESSION_CMD="startxfce4" ;;
+    mate)      SESSION_CMD="mate-session" ;;
+    cinnamon)  SESSION_CMD="cinnamon-session" ;;
+    lxqt)      SESSION_CMD="startlxqt" ;;
+    lxde)      SESSION_CMD="startlxde" ;;
+    flashback) SESSION_CMD="gnome-session --session=gnome-flashback-metacity" ;;
+esac
 VNC_PORT=$(( 5900 + ${VNC_DISPLAY#:} ))
 # apt/dpkg 的通用参数，所有阶段（base/desktop/apps/vncsvc）都会用到，
 # 必须放在阶段判断之外，否则单独跑 desktop 等阶段会因 set -u 报
@@ -377,6 +388,8 @@ fi
 echo "VNC 服务单元: ${VNC_UNIT:-（未找到，改用直接启动）}"
 [ -n "$VNC_UNIT" ] && $SUDO systemctl enable "$VNC_UNIT" 2>/dev/null || true
 VNC_OK=0
+VNC_START_LOG="$HOME/.vnc/acl-vnc-start.log"
+: > "$VNC_START_LOG" 2>/dev/null || true
 vnc_port_listening() {
     (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":${VNC_PORT}\b"
 }
@@ -429,21 +442,73 @@ vnc_start_via_unit() {
     vnc_kill_stale_session
     $SUDO systemctl stop "$VNC_UNIT" 2>/dev/null || true
     vnc_clear_x_locks
-    $SUDO systemctl start "$VNC_UNIT" 2>/dev/null || return 1
+    if ! $SUDO systemctl start "$VNC_UNIT" 2>/dev/null; then
+        echo "[提示] systemd 单元启动失败，单元日志："
+        $SUDO journalctl -u "$VNC_UNIT" -n 15 --no-pager 2>/dev/null | sed 's/^/    /'
+        return 1
+    fi
     vnc_wait_port
 }
 vnc_start_direct() {
     $RUNAS $VNC_CMD -kill "$VNC_DISPLAY" > /dev/null 2>&1 || true
     vnc_kill_stale_session
     vnc_clear_x_locks
-    $RUNAS $VNC_CMD "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -localhost no > /dev/null 2>&1 || return 1
-    vnc_wait_port
+    # 输出不再丢进 /dev/null：启动失败时这些内容就是唯一的线索
+    if $RUNAS $VNC_CMD "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -localhost no \
+        > "$VNC_START_LOG" 2>&1 && vnc_wait_port; then
+        return 0
+    fi
+    echo "[提示] $VNC_CMD 没有监听 ${VNC_PORT}，最近输出："
+    tail -15 "$VNC_START_LOG" 2>/dev/null | sed 's/^/    /'
+    return 1
+}
+# 生成兜底用的 xstartup：绕过 vncserver 包装脚本和 systemd，
+# 直接让 Xtigervnc 执行桌面会话。
+write_xstartup() {
+    cat > "$HOME/.vnc/xstartup" <<EOF
+#!/bin/sh
+unset SESSION_MANAGER
+unset DBUS_SESSION_BUS_ADDRESS
+unset WAYLAND_DISPLAY
+export XDG_SESSION_TYPE=x11
+export GDK_BACKEND=x11
+export QT_QPA_PLATFORM=xcb
+[ -r "\$HOME/.xsessionrc" ] && . "\$HOME/.xsessionrc"
+exec dbus-launch --exit-with-session $SESSION_CMD
+EOF
+    chmod 755 "$HOME/.vnc/xstartup"
+}
+vnc_start_raw() {
+    command -v Xtigervnc > /dev/null 2>&1 || return 1
+    write_xstartup
+    local auth="$HOME/.config/tigervnc/passwd"
+    [ -f "$auth" ] || auth="$HOME/.vnc/passwd"
+    [ -f "$auth" ] || return 1
+    $RUNAS $VNC_CMD -kill "$VNC_DISPLAY" > /dev/null 2>&1 || true
+    pkill -u "$TARGET_USER" -f "Xtigervnc ${VNC_DISPLAY}" 2>/dev/null || true
+    vnc_kill_stale_session
+    vnc_clear_x_locks
+    $RUNAS Xtigervnc "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -depth 24 \
+        -rfbport "$VNC_PORT" -rfbauth "$auth" -SecurityTypes VncAuth \
+        -localhost=0 -AlwaysShared -xstartup "$HOME/.vnc/xstartup" \
+        > "$VNC_START_LOG" 2>&1 &
+    if vnc_wait_port; then
+        return 0
+    fi
+    echo "[提示] Xtigervnc 直接启动也没有监听 ${VNC_PORT}，最近输出："
+    tail -15 "$VNC_START_LOG" 2>/dev/null | sed 's/^/    /'
+    return 1
 }
 if vnc_start_via_unit; then
     VNC_OK=1
 else
     echo "[提示] systemd 方式未能监听 ${VNC_PORT}，改用 $VNC_CMD 直接启动..."
-    vnc_start_direct && VNC_OK=1
+    if vnc_start_direct; then
+        VNC_OK=1
+    else
+        echo "[提示] $VNC_CMD 方式失败，改用 Xtigervnc 直接启动..."
+        vnc_start_raw && VNC_OK=1
+    fi
 fi
 # 端口起来了但窗口管理器没接管（典型：旧会话残留导致 EBUSY、黑屏无面板）
 # → 彻底清理后重试一次，尽量不让用户遇到"进得去但没桌面"的状态。
@@ -457,20 +522,23 @@ if [ "$VNC_OK" = "1" ] && ! vnc_wait_wm; then
     vnc_wait_wm || true
 fi
 if [ "$VNC_OK" = "1" ]; then
-    if vnc_port_listening; then
-        echo "VNC 服务已启动，监听 ${VNC_PORT} 端口。"
-        if vnc_wm_running; then
-            echo "桌面会话已启动（窗口管理器运行中，$DESKTOP_NAME 桌面可用）。"
-        else
-            echo "[警告] VNC 端口已监听，但桌面会话未启动，连接后可能是黑屏。最近会话日志:"
-            tail -5 "$HOME/.xsession-errors" 2>/dev/null | sed 's/^/    /'
-        fi
+    echo "VNC 服务已启动，监听 ${VNC_PORT} 端口。"
+    if vnc_wm_running; then
+        echo "桌面会话已启动（窗口管理器运行中，$DESKTOP_NAME 桌面可用）。"
     else
-        echo "[警告] VNC 进程已启动，但未检测到 ${VNC_PORT} 端口监听，请稍后重试连接。"
+        echo "[警告] VNC 端口已监听，但桌面会话未启动，连接后可能是黑屏。最近会话日志:"
+        tail -5 "$HOME/.xsession-errors" 2>/dev/null | sed 's/^/    /'
     fi
 else
-    echo "[警告] VNC 服务启动失败，可稍后手动执行: vncserver $VNC_DISPLAY"
-    echo "最近日志: $(tail -3 "$HOME/.vnc/"*.log 2>/dev/null | tr '\n' ' ')"
+    echo "[错误] VNC 服务未能监听 ${VNC_PORT} 端口，远程桌面无法连接。"
+    echo "----- $VNC_CMD 启动输出 -----"
+    tail -20 "$VNC_START_LOG" 2>/dev/null | sed 's/^/    /'
+    echo "----- $HOME/.vnc 会话日志 -----"
+    tail -20 "$HOME/.vnc/"*.log 2>/dev/null | sed 's/^/    /'
+    if [ "$STAGE" = "vncsvc" ]; then
+        fail "TigerVNC 启动失败：没有监听 ${VNC_PORT} 端口。请查看上方日志（常见原因：桌面会话命令不存在、密码文件权限不对、端口被占用）。"
+    fi
+    echo "[警告] 已跳过远程桌面，请修复后单独重跑「TigerVNC 服务」步骤。"
 fi
 fi  # 阶段 vncsvc 结束
 

@@ -151,8 +151,11 @@ pub async fn enable_linux_env(
     adb_path: Option<String>,
 ) -> Result<DevOptionReport, String> {
     let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    // 先把幽灵进程限制关掉：否则装到一半虚拟机可能被系统回收
+    let (_, phantom_note) = devopts::disable_phantom_killer(&adb).await;
     devopts::enable_linux_env(&adb).await.map_err(|e| e.to_string())?;
     let mut report = devopts::report(&adb).await.map_err(|e| e.to_string())?;
+    report.notes.push(phantom_note);
     // 打开开发者选项做一次视觉核对，确认开关确实处于打开状态
     if let Ok((visible, label, checked)) = devopts::verify_linux_entry(&adb).await {
         report.linux_entry_visible = visible;
@@ -160,6 +163,17 @@ pub async fn enable_linux_env(
         report.linux_switch_checked = checked;
     }
     Ok(report)
+}
+
+/// 关闭 Android 的幽灵进程限制，避免 Linux 虚拟机被系统在后台回收。
+#[tauri::command]
+pub async fn disable_phantom_killer(
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+) -> Result<bool, String> {
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    Ok(devopts::disable_phantom_killer(&adb).await.0)
 }
 
 /// 扫描当前界面是否存在需要人工处理的安全弹窗。

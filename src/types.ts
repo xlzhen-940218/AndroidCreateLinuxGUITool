@@ -128,6 +128,10 @@ export interface VncSetup {
   port: number;
   forwardOk: boolean;
   forwardDetail: string;
+  /** 是否真的能连上 VNC 服务（完成 RFB 握手） */
+  reachable: boolean;
+  /** 探测详情（成功或失败原因） */
+  probeDetail: string;
   viewerFound: boolean;
   /** 客户端是本次自动下载得到的 */
   viewerDownloaded: boolean;

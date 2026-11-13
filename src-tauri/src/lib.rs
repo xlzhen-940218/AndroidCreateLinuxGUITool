@@ -570,10 +570,8 @@ pub fn port_cli(args: &[String]) -> i32 {
         }
 
         println!("\n=== 连接测试 ===");
-        match probe_vnc(&adb, port).await {
-            Ok(msg) => println!("{}", msg),
-            Err(e) => eprintln!("[错误] {}", e),
-        }
+        let (reachable, detail) = vnc::probe_vnc(port, 3).await;
+        println!("{} {}", if reachable { "✓" } else { "✗" }, detail);
 
         println!("\n=== TigerVNC Viewer ===");
         match vnc::launch_tigervnc(port, &password).await {
@@ -592,28 +590,6 @@ pub fn port_cli(args: &[String]) -> i32 {
     })
 }
 
-/// 连到转发后的端口，读一下 VNC 的协议握手串，验证链路是否真的通了。
-async fn probe_vnc(_adb: &Adb, port: u16) -> anyhow::Result<String> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port)).await?;
-    let mut buf = [0u8; 12];
-    let n = stream.read(&mut buf).await?;
-    let banner = String::from_utf8_lossy(&buf[..n]).trim().to_string();
-    if banner.starts_with("RFB ") {
-        // 回一个客户端版本，完整走一次握手
-        let _ = stream.write_all(b"RFB 003.008\n").await;
-        Ok(format!(
-            "127.0.0.1:{} 握手成功，服务端协议版本: {}",
-            port, banner
-        ))
-    } else {
-        Ok(format!(
-            "127.0.0.1:{} 已连接，但返回的不是 VNC 握手串: {:?}",
-            port, banner
-        ))
-    }
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -626,6 +602,7 @@ pub fn run() {
             commands::dev_options,
             commands::open_dev_options,
             commands::enable_linux_env,
+            commands::disable_phantom_killer,
             commands::scan_security,
             commands::click_allow,
             commands::terminal_phase,

@@ -27,6 +27,8 @@ export const api = {
     invoke<void>("open_dev_options", { serial, adbPath }),
   enableLinuxEnv: (serial: string, adbPath?: string) =>
     invoke<DevOptionReport>("enable_linux_env", { serial, adbPath }),
+  disablePhantomKiller: (serial: string, adbPath?: string) =>
+    invoke<boolean>("disable_phantom_killer", { serial, adbPath }),
   scanSecurity: (serial: string, adbPath?: string) =>
     invoke<SecurityIssue | null>("scan_security", { serial, adbPath }),
   clickAllow: (serial: string, adbPath?: string) =>
