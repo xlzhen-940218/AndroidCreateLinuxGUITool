@@ -570,7 +570,7 @@ pub fn port_cli(args: &[String]) -> i32 {
         }
 
         println!("\n=== 连接测试 ===");
-        let (reachable, detail) = vnc::probe_vnc(port, 3).await;
+        let (reachable, detail) = vnc::probe_vnc(port, &password, 3).await;
         println!("{} {}", if reachable { "✓" } else { "✗" }, detail);
 
         println!("\n=== TigerVNC Viewer ===");

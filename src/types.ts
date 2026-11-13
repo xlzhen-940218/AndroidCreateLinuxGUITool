@@ -112,6 +112,9 @@ export interface InstalledReport {
   appsTotal: number;
   ime: boolean;
   vnc: boolean;
+  /** 虚拟机里 5901 端口是否真的在监听（装了包 ≠ 服务在跑） */
+  vncPort: boolean;
+  vncUnit: string;
   ssh: boolean;
   message: string;
 }

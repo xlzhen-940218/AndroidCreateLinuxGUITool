@@ -55,42 +55,25 @@ pub struct VncSetup {
 /// Terminal 应用的端口转发 → 虚拟机里的 VNC 服务。手机上的 AVNC 走的是
 /// 后半段（手机 127.0.0.1:<port>），所以这个探测同样能验证 AVNC 能否连上。
 ///
+/// 用给定密码做一次完整的 VNC 认证握手。
+///
+/// 之前只读 12 字节 `RFB 003.008` 就判定"可连接"，服务端密码配错时也会
+/// 显示"远程桌面已就绪"，直到客户端弹出认证失败才发现问题。现在走完
+/// VncAuth：选择安全类型 → 解挑战 → 校验 SecurityResult，能直接区分
+/// "密码不对"、"短时间失败太多被临时封禁"、"没开 VncAuth"。
+///
 /// `attempts` > 1 时会重试：端口刚放行或虚拟机刚启动时，转发链路可能还没生效。
-pub async fn probe_vnc(port: u16, attempts: u32) -> (bool, String) {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
+pub async fn probe_vnc(port: u16, password: &str, attempts: u32) -> (bool, String) {
     let mut last = String::new();
     for i in 0..attempts {
-        let connect = tokio::time::timeout(
-            std::time::Duration::from_secs(3),
-            tokio::net::TcpStream::connect(("127.0.0.1", port)),
-        )
-        .await;
-        match connect {
-            Err(_) => last = "连接超时".to_string(),
-            Ok(Err(e)) => last = format!("连接被拒绝或不可达：{}", e),
-            Ok(Ok(mut stream)) => {
-                let mut buf = [0u8; 12];
-                match tokio::time::timeout(
-                    std::time::Duration::from_secs(3),
-                    stream.read(&mut buf),
-                )
-                .await
-                {
-                    Ok(Ok(n)) if n > 0 => {
-                        let banner = String::from_utf8_lossy(&buf[..n]).trim().to_string();
-                        if banner.starts_with("RFB ") {
-                            let _ = stream.write_all(b"RFB 003.008\n").await;
-                            return (true, format!("VNC 握手成功（服务端版本 {}）", banner));
-                        }
-                        return (
-                            false,
-                            format!("端口有响应，但返回的不是 VNC 协议：{:?}", banner),
-                        );
-                    }
-                    Ok(Ok(_)) => last = "端口已连通，但服务端没有返回 VNC 握手数据".to_string(),
-                    Ok(Err(e)) => last = format!("读取握手数据失败：{}", e),
-                    Err(_) => last = "等待 VNC 握手超时".to_string(),
+        match probe_auth_once(port, password).await {
+            Ok(msg) => return (true, msg),
+            Err(e) => {
+                last = e.to_string();
+                // 认证类失败重试没有意义，而且每次失败都会累加服务端的
+                // 封禁计数，尽快把真实原因返回给用户。
+                if last.contains("认证") || last.contains("安全类型") {
+                    break;
                 }
             }
         }
@@ -99,6 +82,113 @@ pub async fn probe_vnc(port: u16, attempts: u32) -> (bool, String) {
         }
     }
     (false, last)
+}
+
+async fn probe_auth_once(port: u16, password: &str) -> Result<String> {
+    use tokio::io::AsyncWriteExt;
+
+    let mut stream = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        tokio::net::TcpStream::connect(("127.0.0.1", port)),
+    )
+    .await
+    .map_err(|_| anyhow!("连接超时"))?
+    .map_err(|e| anyhow!("连接被拒绝或不可达：{}", e))?;
+
+    let mut banner = [0u8; 12];
+    read_exact(&mut stream, &mut banner, "等待 VNC 握手超时").await?;
+    let version = String::from_utf8_lossy(&banner).trim().to_string();
+    if !version.starts_with("RFB ") {
+        bail!("端口有响应，但返回的不是 VNC 协议：{:?}", version);
+    }
+    stream.write_all(b"RFB 003.008\n").await?;
+
+    let mut count = [0u8; 1];
+    read_exact(&mut stream, &mut count, "等待安全类型超时").await?;
+    if count[0] == 0 {
+        let reason = read_reason(&mut stream).await.unwrap_or_default();
+        bail!("{}", if reason.is_empty() { "服务端拒绝连接".into() } else { reason });
+    }
+    let mut types = vec![0u8; count[0] as usize];
+    read_exact(&mut stream, &mut types, "读取安全类型超时").await?;
+    if !types.contains(&2) {
+        bail!(
+            "服务端没有启用密码认证（VncAuth），可用的安全类型：{:?}",
+            types
+        );
+    }
+    stream.write_all(&[2]).await?;
+
+    let mut challenge = [0u8; 16];
+    read_exact(&mut stream, &mut challenge, "等待认证挑战超时").await?;
+    stream
+        .write_all(&vnc_auth_response(password, &challenge))
+        .await?;
+
+    let mut result = [0u8; 4];
+    read_exact(&mut stream, &mut result, "等待认证结果超时").await?;
+    if u32::from_be_bytes(result) == 0 {
+        return Ok(format!("VNC 密码认证成功（服务端版本 {}）", version));
+    }
+    let reason = read_reason(&mut stream).await.unwrap_or_default();
+    if reason.to_lowercase().contains("too many") {
+        bail!(
+            "服务端拒绝了本次认证：{}。短时间内失败次数过多会触发临时封禁，\
+             请重跑「TigerVNC 服务」或等 60 秒后再试。",
+            reason
+        );
+    }
+    bail!(
+        "VNC 密码认证失败：{}（界面里的密码与服务端不一致）",
+        if reason.is_empty() {
+            "密码错误".to_string()
+        } else {
+            reason
+        }
+    );
+}
+
+async fn read_exact<S>(stream: &mut S, buf: &mut [u8], timeout_msg: &str) -> Result<()>
+where
+    S: tokio::io::AsyncRead + Unpin,
+{
+    use tokio::io::AsyncReadExt;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        stream.read_exact(buf),
+    )
+    .await
+    .map_err(|_| anyhow!("{}", timeout_msg))?
+    .map_err(|e| anyhow!("读取认证数据失败：{}", e))?;
+    Ok(())
+}
+
+async fn read_reason<S>(stream: &mut S) -> Result<String>
+where
+    S: tokio::io::AsyncRead + Unpin,
+{
+    let mut len = [0u8; 4];
+    read_exact(stream, &mut len, "读取拒绝原因超时").await?;
+    let n = u32::from_be_bytes(len) as usize;
+    if n == 0 || n > 4096 {
+        return Ok(String::new());
+    }
+    let mut buf = vec![0u8; n];
+    read_exact(stream, &mut buf, "读取拒绝原因超时").await?;
+    Ok(String::from_utf8_lossy(&buf).trim().to_string())
+}
+
+/// VncAuth 的挑战响应：用密码混淆后的 8 字节作为 DES 密钥，加密 16 字节挑战。
+fn vnc_auth_response(password: &str, challenge: &[u8]) -> [u8; 16] {
+    let key = vnc_passwd_bytes(password);
+    let cipher = Des::new(GenericArray::from_slice(&key));
+    let mut out = [0u8; 16];
+    for i in 0..2 {
+        let mut block = GenericArray::clone_from_slice(&challenge[i * 8..i * 8 + 8]);
+        cipher.encrypt_block(&mut block);
+        out[i * 8..i * 8 + 8].copy_from_slice(&block);
+    }
+    out
 }
 
 
@@ -504,12 +594,23 @@ pub async fn setup_with(
     // 先验证链路，再决定要不要拉起客户端：VNC 服务没起来时打开查看器
     // 只会看到一个 "connection was dropped" 的错误框，反而误导用户。
     progress("正在检测 VNC 服务是否可连接…".to_string());
-    let (reachable, probe_detail) = probe_vnc(port, 5).await;
+    let (reachable, probe_detail) = probe_vnc(port, password, 3).await;
     if !forward_ok || !reachable {
         let reason = if !forward_ok {
             forward_detail.clone()
         } else {
             probe_detail.clone()
+        };
+        let hint = if probe_detail.contains("失败次数过多") {
+            "刚才的多次失败触发了服务端的临时封禁，VNC 本身是起来的。\n\n"
+        } else if probe_detail.contains("密码认证失败") {
+            "服务端要求密码认证，但界面里的密码和服务端不一致。\n\n"
+        } else if probe_detail.contains("没有启用密码认证") {
+            "服务端没有启用 VncAuth 密码认证，请重跑「TigerVNC 服务」步骤。\n\n"
+        } else if probe_detail.contains("拒绝") || probe_detail.contains("不可达") {
+            "手机上的该端口没有监听 —— 多半是 Terminal 还没有放行这个端口。\n\n"
+        } else {
+            ""
         };
         return Ok(VncSetup {
             port,
@@ -523,14 +624,14 @@ pub async fn setup_with(
             viewer_launched: false,
             connect_hint,
             message: format!(
-                "端口转发已建立，但无法连接 127.0.0.1:{}：{}\n\n\
+                "{}端口转发已建立，但无法连接 127.0.0.1:{}：{}\n\n\
                  常见原因：\n\
                  1) 虚拟机里的 TigerVNC 没有启动 —— 请回到「TigerVNC 服务」步骤重跑，\n\
                     并查看执行日志里的失败原因；\n\
                  2) Terminal 应用没有放行 {} 端口 —— 打开 Terminal → 右上角 ⋮ →\n\
-                    Settings → Security，在 Listening ports 里打开该端口；\n\
+                    Settings → Security（旧版是 Port control / 端口控制），在允许端口里打开该端口；\n\
                  3) 端口刚放行、虚拟机转发尚未生效 —— 等几秒后重试。",
-                port, reason, port
+                hint, port, reason, port
             ),
         });
     }

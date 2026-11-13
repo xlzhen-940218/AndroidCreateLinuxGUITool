@@ -259,15 +259,27 @@ async fn open_security_page_once(adb: &Adb) -> Result<()> {
     uia::tap_node(adb, settings).await?;
     tokio::time::sleep(Duration::from_millis(1500)).await;
 
-    // 3) 设置页里的 Security
+    // 3) 设置页里的端口入口。
+    //    new2 版本是 Security / 安全；旧版 AOSP（Redmi K Pad 等）的设置页
+    //    只有「调整磁盘大小 / 端口控制 / 恢复」三项，直接点 Port control /
+    //    端口控制。注意不能直接 am start SettingsPortForwardingActivity，
+    //    该 Activity 未导出，adb shell 会被权限拒绝，只能从界面点进去。
     let nodes = dump_retry(adb, 3).await?;
     let security = nodes
         .iter()
         .find(|n| {
-            let t = n.text.trim();
-            t.eq_ignore_ascii_case("security") || t == "安全"
+            let t = n.text.trim().to_lowercase();
+            t == "security"
+                || t == "安全"
+                || t == "port control"
+                || t == "端口控制"
+                || t == "port forwarding"
+                || t == "端口转发"
+                || t == "端口控制（port control）"
         })
-        .ok_or_else(|| anyhow!("未能在设置页中找到「Security / 安全」。"))?;
+        .ok_or_else(|| {
+            anyhow!("未能在设置页中找到「Security / 安全」或「Port control / 端口控制」。")
+        })?;
     uia::tap_node(adb, security).await?;
     tokio::time::sleep(Duration::from_millis(1600)).await;
 
@@ -291,7 +303,7 @@ async fn open_security_page_once(adb: &Adb) -> Result<()> {
         en || zh
     });
     if !on_security {
-        bail!("未能进入 Terminal 的「设置 → 安全」页面。");
+        bail!("未能进入 Terminal 的「端口控制 / Port control」页面。");
     }
     Ok(())
 }
@@ -359,16 +371,18 @@ async fn add_port_via_dialog(adb: &Adb, port: u16) -> Result<()> {
     let add_btn = nodes
         .iter()
         .find(|n| {
-            let d = n.desc.trim();
-            let t = n.text.trim();
-            d.eq_ignore_ascii_case("add")
+            let d = n.desc.trim().to_lowercase();
+            let t = n.text.trim().to_lowercase();
+            // 旧版 AOSP 的浮动按钮带 resource-id，文案可能被翻译成任意语言
+            n.id.contains("add_button")
+                || d == "add"
                 || d == "添加"
                 || d == "新增"
-                || t.eq_ignore_ascii_case("add")
+                || t == "add"
                 || t == "添加"
                 || t == "新增"
         })
-        .ok_or_else(|| anyhow!("未能在安全页找到「添加端口」按钮（+）。"))?;
+        .ok_or_else(|| anyhow!("未能找到「添加端口」按钮（+）。"))?;
     uia::tap_node(adb, add_btn).await?;
     tokio::time::sleep(Duration::from_millis(900)).await;
 
@@ -420,7 +434,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
                 port,
                 ok: true,
                 action: "already_enabled".to_string(),
-                message: format!("端口 {} 已在 Terminal「设置 → 安全」中放行。", port),
+                message: format!("端口 {} 已在 Terminal 的端口控制中放行。", port),
                 active: true,
             });
         }
@@ -435,7 +449,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
             ok: enabled,
             action: "switched_on".to_string(),
             message: if enabled {
-                format!("已在 Terminal「设置 → 安全」中放行端口 {}。", port)
+                format!("已在 Terminal 的端口控制中放行端口 {}。", port)
             } else {
                 format!("端口 {} 的开关未能打开，请手动确认。", port)
             },
@@ -449,7 +463,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
             port,
             ok: true,
             action: "already_saved".to_string(),
-            message: format!("端口 {} 已在 Terminal「设置 → 安全」的允许列表中。", port),
+            message: format!("端口 {} 已在 Terminal 的允许端口列表中。", port),
             active: false,
         });
     }
@@ -469,7 +483,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
                     port,
                     ok: true,
                     action: "added".to_string(),
-                    message: format!("已把端口 {} 加入「设置 → 安全」的允许列表。", port),
+                    message: format!("已把端口 {} 加入 Terminal 的允许端口列表。", port),
                     active: false,
                 });
             }
@@ -578,6 +592,25 @@ async fn enable_port_via_settings(adb: &Adb, port: u16) -> Result<PortResult> {
     })
 }
 
+/// 把 adb 返回的多行异常压缩成一句可读的原因（避免弹窗里刷屏堆栈）。
+fn brief(e: &str) -> String {
+    let line = e
+        .lines()
+        .map(str::trim)
+        .find(|l| {
+            !l.is_empty()
+                && !l.starts_with("Exception occurred")
+                && !l.starts_with("java.")
+                && !l.starts_with("at ")
+        })
+        .unwrap_or("未知错误");
+    if line.chars().count() > 120 {
+        format!("{}…", line.chars().take(120).collect::<String>())
+    } else {
+        line.to_string()
+    }
+}
+
 /// 放行一个端口：新版走「设置 → 安全」，失败再尝试通知栏与旧版界面。
 pub async fn enable_port(adb: &Adb, port: u16) -> Result<PortResult> {
     // 1) 新版（new2）Terminal：⋮ → Settings → Security
@@ -611,11 +644,15 @@ pub async fn enable_port(adb: &Adb, port: u16) -> Result<PortResult> {
                     ok: false,
                     action: "manual".to_string(),
                     message: format!(
-                        "自动放行端口 {} 失败：{}\n（旧版端口控制界面：{}）\n\n\
-                         请手动处理：打开手机上的 Terminal 应用 → 右上角 ⋮ → Settings → Security，\
-                         在「Listening ports」里打开端口 {} 的开关；\
-                         若列表中没有该端口，点右下角「+」输入 {} 保存即可。",
-                        port, e_new, e_old, port, port
+                        "自动放行端口 {port} 失败：{new}\n（旧版端口控制界面：{old}）\n\n\
+                         请在手机上手动处理：\n\
+                         1) 打开 Terminal → 右上角 ⋮ → Settings（设置）；\n\
+                         2) 新版：Security（安全）→ Listening ports，打开 {port} 的开关；\n\
+                         3) 旧版（如 Redmi K Pad）：设置页只有「调整磁盘大小 / 端口控制 / 恢复」，\
+                         直接点 Port control（端口控制），点右下角 +，输入 {port} 后保存。",
+                        port = port,
+                        new = brief(&e_new.to_string()),
+                        old = brief(&e_old.to_string()),
                     ),
                     active: false,
                 }),

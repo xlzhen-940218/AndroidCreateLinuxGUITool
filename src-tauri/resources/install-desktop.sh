@@ -146,12 +146,45 @@ echo "阶段: $STAGE"
 step "detect_system"
 DEB_RAW="$(cat /etc/debian_version 2>/dev/null | tr -d '[:space:]')"
 DEB_VER="$(printf '%s' "$DEB_RAW" | cut -d. -f1 | tr -dc '0-9')"
-case "$DEB_VER" in
-    12) SUITE="bookworm" ;;
-    13) SUITE="trixie" ;;
-    *)  SUITE="$(lsb_release -cs 2>/dev/null || echo bookworm)" ;;
+
+# 识别 Debian 套件。不同设备的镜像版本不一样（Pixel 的 AVF 镜像是 Debian 13，
+# Redmi K Pad 是 Debian 12），套件选错会让仓库版本和已装软件对不上，apt 直接报
+#   E: The package perl-base needs to be reinstalled, but I can't find an archive for it.
+# 注意：测试/滚动镜像的 /etc/debian_version 可能写成 `trixie/sid`，里面没有数字，
+# 所以不能只看版本号，要按名字兜底。
+detect_suite() {
+    local name=""
+    if [ -r /etc/os-release ]; then
+        name="$(. /etc/os-release 2>/dev/null; printf '%s' "${VERSION_CODENAME:-}")"
+    fi
+    if [ -z "$name" ]; then
+        case "$DEB_RAW" in
+            12*)                          name=bookworm ;;
+            13*)                          name=trixie   ;;
+            *bullseye*)                   name=bullseye ;;
+            *bookworm*)                   name=bookworm ;;
+            *trixie*|*forky*|*sid*|*testing*) name=trixie ;;
+        esac
+    fi
+    if [ -z "$name" ]; then
+        name="$(lsb_release -cs 2>/dev/null || true)"
+    fi
+    if [ -z "$name" ]; then
+        case "$DEB_VER" in
+            11) name=bullseye ;;
+            12) name=bookworm ;;
+            13) name=trixie   ;;
+        esac
+    fi
+    printf '%s' "${name:-bookworm}"
+}
+SUITE="$(detect_suite)"
+# bullseye 及更早没有 non-free-firmware 组件，带上会让 apt update 直接失败
+case "$SUITE" in
+    bullseye|buster|stretch) COMPONENTS="main contrib non-free" ;;
+    *)                       COMPONENTS="main contrib non-free non-free-firmware" ;;
 esac
-echo "系统: Debian ${DEB_VER:-未知} (suite=$SUITE)"
+echo "系统: Debian ${DEB_VER:-未知} (${DEB_RAW:-?}, suite=$SUITE)"
 echo "架构: $(uname -m)   内核: $(uname -r)"
 
 # ---------------------- 修复上次中断留下的 dpkg 状态 ----------------------
@@ -182,9 +215,13 @@ fi
 echo "dpkg 状态检查完成。"
 
 # ---------------------------- 切换国内源 ----------------------------
-if [ "$CN_MIRROR" = "1" ]; then
-    step "mirror"
-    echo "正在切换到国内镜像源 (清华 TUNA)..."
+# 写好 sources.list + deb822 的 debian.sources（套件由 detect_suite 决定）
+write_cn_sources() {
+    local suite="$1"
+    local comps="main contrib non-free"
+    case "$COMPONENTS" in
+        *non-free-firmware*) comps="main contrib non-free non-free-firmware" ;;
+    esac
     DEB_CN="https://mirrors.tuna.tsinghua.edu.cn/debian"
     SEC_CN="https://mirrors.tuna.tsinghua.edu.cn/debian-security"
     $SUDO cp -n /etc/apt/sources.list /etc/apt/sources.list.bak.acl 2>/dev/null || true
@@ -196,23 +233,29 @@ if [ "$CN_MIRROR" = "1" ]; then
     $SUDO tee /etc/apt/sources.list.d/debian.sources > /dev/null <<EOF
 Types: deb
 URIs: $DEB_CN
-Suites: $SUITE $SUITE-updates
-Components: main contrib non-free non-free-firmware
+Suites: $suite $suite-updates
+Components: $COMPONENTS
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 
 Types: deb
 URIs: $SEC_CN
-Suites: $SUITE-security
-Components: main contrib non-free non-free-firmware
+Suites: $suite-security
+Components: $COMPONENTS
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 EOF
 
     # 经典格式（兼容老镜像）
     $SUDO tee /etc/apt/sources.list > /dev/null <<EOF
-deb $DEB_CN $SUITE main contrib non-free non-free-firmware
-deb $DEB_CN $SUITE-updates main contrib non-free non-free-firmware
-deb $SEC_CN $SUITE-security main contrib non-free non-free-firmware
+deb $DEB_CN $suite main contrib non-free${comps##* non-free}
+deb $DEB_CN $suite-updates main contrib non-free${comps##* non-free}
+deb $SEC_CN $suite-security main contrib non-free${comps##* non-free}
 EOF
+}
+
+if [ "$CN_MIRROR" = "1" ]; then
+    step "mirror"
+    echo "正在切换到国内镜像源 (清华 TUNA, $SUITE)..."
+    write_cn_sources "$SUITE"
     echo "国内源已生效: $DEB_CN ($SUITE)"
 fi
 
@@ -220,6 +263,29 @@ fi
 step "apt_update"
 echo "正在更新软件包列表..."
 $SUDO apt-get $APT_OPTS update -y || fail "apt-get update 失败。请检查虚拟机网络连通性，或临时关闭「使用国内源」后重试。"
+
+# 套件和镜像不匹配时，已安装软件在仓库里找不到对应版本，apt 会报：
+#   E: The package perl-base needs to be reinstalled, but I can't find an archive for it.
+# 用 perl-base 当探针：候选版本为空说明套件选错了，换另一个套件再更新一次。
+if [ "$CN_MIRROR" = "1" ] && apt-cache policy perl-base 2>/dev/null | grep -q 'Candidate: (none)'; then
+    case "$SUITE" in
+        trixie) ALT_SUITE=bookworm ;;
+        *)      ALT_SUITE=trixie   ;;
+    esac
+    echo "[提示] $SUITE 仓库里找不到已安装的 perl-base，套件可能选错了，改用 $ALT_SUITE 重试..."
+    SUITE="$ALT_SUITE"
+    write_cn_sources "$SUITE"
+    echo "国内源已切换: $DEB_CN ($SUITE)"
+    $SUDO apt-get $APT_OPTS update -y || fail "apt-get update 失败（套件 $SUITE）。"
+fi
+
+# dpkg 里被标记为"需要重装"的包（状态 iR）会挡住后续所有 install/upgrade
+REINST="$(dpkg -l 2>/dev/null | awk '$1 ~ /^iR/ {print $2}' | tr '\n' ' ')"
+if [ -n "$REINST" ]; then
+    echo "检测到需要重装的软件包: $REINST"
+    $SUDO apt-get $APT_OPTS install -y --reinstall $REINST || echo "[警告] 重装 $REINST 未完全成功，继续执行。"
+fi
+
 echo "正在升级已安装的软件包..."
 $SUDO apt-get $APT_OPTS upgrade -y || echo "[警告] apt-get upgrade 未完全成功，继续执行。"
 
@@ -314,8 +380,26 @@ else
     done
 fi
 if [ -z "$ACTUAL_SESSION" ]; then
+    # 所选桌面的会话文件不存在时，退回系统里第一个可用的会话。
+    # 常见于之前装的是别的桌面（例如已装 Cinnamon，这次选项却是 XFCE），
+    # 没必要因为选项不一致就判定失败。
+    for f in /usr/share/xsessions/*.desktop; do
+        [ -e "$f" ] || continue
+        ACTUAL_SESSION="$(basename "$f" .desktop)"
+        break
+    done
+fi
+if [ -z "$ACTUAL_SESSION" ]; then
     echo "可用的 X 会话: $(ls /usr/share/xsessions/ 2>/dev/null | tr '\n' ' ')"
-    fail "桌面环境已安装，但没有找到可用的 X 会话文件（/usr/share/xsessions）。"
+    fail "桌面环境已安装，但没有找到可用的 X 会话文件（/usr/share/xsessions）。请在左侧重新选择已安装的桌面类型后重试。"
+fi
+# 会话文件里的 Exec 才是真正要执行的命令，以实际安装的会话为准
+ACTUAL_EXEC="$(sed -n 's/^Exec=//p' "/usr/share/xsessions/$ACTUAL_SESSION.desktop" 2>/dev/null | head -n1 | sed 's/ *%[fFuU]//g')"
+if [ -n "${ACTUAL_EXEC:-}" ]; then
+    SESSION_CMD="$ACTUAL_EXEC"
+fi
+if [ "$ACTUAL_SESSION" != "$SESSION_WANT" ]; then
+    echo "[提示] 所选桌面（$DESKTOP_NAME）的会话文件不存在，改用系统里已安装的会话: $ACTUAL_SESSION"
 fi
 echo "使用会话: $ACTUAL_SESSION"
 
@@ -367,6 +451,9 @@ alwaysshared
 # 只提供 VncAuth：否则服务端还会广播 VeNCrypt(19)，部分客户端会先尝试
 # VeNCrypt 并用用户名+密码的方式认证，直接报"认证失败"。
 SecurityTypes=VncAuth
+# 必须显式指定密码文件：systemd 单元 / vncserver 包装脚本在部分版本里
+# 不会自动带 -rfbauth，结果服务端报 "No password configured for VNC Auth"。
+passwordfile=$HOME/.vnc/passwd
 EOF
 cp "$HOME/.vnc/config" "$HOME/.config/tigervnc/config" 2>/dev/null || true
 
@@ -437,6 +524,11 @@ vnc_wait_wm() {
     done
     return 1
 }
+# 服务端是否真的加载了密码文件。没有 -rfbauth / -PasswordFile 时，
+# 客户端会直接报 "No password configured for VNC Auth"。
+vnc_auth_configured() {
+    pgrep -u "$TARGET_USER" -af Xtigervnc 2>/dev/null | grep -qi -- '-rfbauth\|-passwordfile'
+}
 vnc_start_via_unit() {
     [ -n "$VNC_UNIT" ] || return 1
     vnc_kill_stale_session
@@ -488,11 +580,14 @@ vnc_start_raw() {
     pkill -u "$TARGET_USER" -f "Xtigervnc ${VNC_DISPLAY}" 2>/dev/null || true
     vnc_kill_stale_session
     vnc_clear_x_locks
-    $RUNAS Xtigervnc "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -depth 24 \
+    # setsid + nohup：脱离当前终端会话。否则安装脚本一结束，Xtigervnc
+    # 可能随 Terminal 会话被一起清理，表现为"刚启动就掉线"。
+    $RUNAS setsid nohup Xtigervnc "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -depth 24 \
         -rfbport "$VNC_PORT" -rfbauth "$auth" -SecurityTypes VncAuth \
         -localhost=0 -AlwaysShared -xstartup "$HOME/.vnc/xstartup" \
-        > "$VNC_START_LOG" 2>&1 &
-    if vnc_wait_port; then
+        > "$VNC_START_LOG" 2>&1 < /dev/null &
+    # 等端口就绪后再观察 2 秒，确认进程没有启动后立刻退出
+    if vnc_wait_port && sleep 2 && vnc_port_listening; then
         return 0
     fi
     echo "[提示] Xtigervnc 直接启动也没有监听 ${VNC_PORT}，最近输出："
@@ -510,11 +605,26 @@ else
         vnc_start_raw && VNC_OK=1
     fi
 fi
+# 端口起来了但密码没生效（客户端报 "No password configured for VNC Auth"）
+# → 用带 -rfbauth 的方式重启一次，保证密码认证可用。
+if [ "$VNC_OK" = "1" ] && [ -n "$VNC_PASSWORD" ] && ! vnc_auth_configured; then
+    echo "[提示] 当前 VNC 实例没有加载密码文件，改用 Xtigervnc 直接启动以强制启用 VncAuth..."
+    if vnc_start_raw; then
+        echo "VNC 密码认证已启用。"
+    else
+        echo "[警告] 未能启用密码认证，客户端可能报 \"No password configured\"。"
+        VNC_OK=0
+    fi
+fi
 # 端口起来了但窗口管理器没接管（典型：旧会话残留导致 EBUSY、黑屏无面板）
 # → 彻底清理后重试一次，尽量不让用户遇到"进得去但没桌面"的状态。
 if [ "$VNC_OK" = "1" ] && ! vnc_wait_wm; then
     echo "[提示] 桌面会话未接管窗口管理器，清理残留会话后重试..."
-    if [ -n "$VNC_UNIT" ]; then
+    # 设过密码时优先用带 -rfbauth 的直接启动，避免 systemd 单元把
+    # 密码配置丢掉（会变成 "No password configured for VNC Auth"）。
+    if [ -n "$VNC_PASSWORD" ]; then
+        vnc_start_raw || vnc_start_via_unit || true
+    elif [ -n "$VNC_UNIT" ]; then
         vnc_start_via_unit || true
     else
         vnc_start_direct || true
@@ -523,6 +633,9 @@ if [ "$VNC_OK" = "1" ] && ! vnc_wait_wm; then
 fi
 if [ "$VNC_OK" = "1" ]; then
     echo "VNC 服务已启动，监听 ${VNC_PORT} 端口。"
+    if [ -n "$VNC_PASSWORD" ] && vnc_auth_configured; then
+        echo "VNC 密码认证已就绪。"
+    fi
     if vnc_wm_running; then
         echo "桌面会话已启动（窗口管理器运行中，$DESKTOP_NAME 桌面可用）。"
     else

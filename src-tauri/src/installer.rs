@@ -284,6 +284,10 @@ pub struct InstalledReport {
     pub apps_total: u32,
     pub ime: bool,
     pub vnc: bool,
+    /// 虚拟机里 5901 端口是否真的在监听（装了包 ≠ 服务在跑）。
+    pub vnc_port: bool,
+    /// tigervncserver@:1.service 的状态（active / failed / inactive / unknown）。
+    pub vnc_unit: String,
     pub ssh: bool,
     pub message: String,
 }
@@ -332,6 +336,10 @@ fn parse_probe(content: &str) -> InstalledReport {
             r.ime = v.trim() == "1";
         } else if let Some(v) = line.strip_prefix("VNC=") {
             r.vnc = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("VNC_PORT=") {
+            r.vnc_port = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("VNC_UNIT=") {
+            r.vnc_unit = v.trim().to_string();
         } else if let Some(v) = line.strip_prefix("SSH=") {
             r.ssh = v.trim() == "1";
         }

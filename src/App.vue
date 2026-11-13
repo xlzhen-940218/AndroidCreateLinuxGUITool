@@ -903,6 +903,8 @@ onMounted(async () => {
           tone: "success",
           buttons: [{ id: "goto-next", label: t("btn.next"), primary: true }],
         });
+        // VNC 阶段结束后重新检测，确认 5901 是真的在监听
+        if (st === "vncsvc") void detectInstalled(true);
       } else if (s.state === "failed") {
         activeStage.value = st;
         done[st] = false;
@@ -1270,8 +1272,14 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
               <span :class="installed.ime ? 'ok' : 'miss'">
                 {{ t("inst.imeLabel") }}：{{ installed.ime ? t("common.installed") : t("common.notInstalled") }}
               </span>
-              <span :class="installed.vnc ? 'ok' : 'miss'">
-                {{ t("inst.vncLabel") }}：{{ installed.vnc ? t("common.installed") : t("common.notInstalled") }}
+              <span :class="installed.vncPort ? 'ok' : 'miss'">
+                {{ t("inst.vncLabel") }}：{{
+                  !installed.vnc
+                    ? t("common.notInstalled")
+                    : installed.vncPort
+                      ? t("common.running")
+                      : t("common.notRunning")
+                }}
               </span>
             </div>
             <div v-else class="detect-line">
