@@ -209,6 +209,17 @@ pub async fn terminal_phase(
     terminal::phase(&adb).await.map_err(|e| e.to_string())
 }
 
+/// 只读检测「Linux 系统镜像是否已经安装」，不会触发下载。
+#[tauri::command]
+pub async fn detect_linux_image(
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+) -> Result<terminal::ImageStatus, String> {
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    terminal::detect_image(&adb).await.map_err(|e| e.to_string())
+}
+
 /// 「安装 Linux 系统」步骤：授权、打开 Terminal、必要时点安装、等待终端就绪。
 #[tauri::command]
 pub async fn install_linux_image(

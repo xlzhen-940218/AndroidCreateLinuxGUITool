@@ -329,6 +329,83 @@ fn port_row<'a>(nodes: &'a [UiNode], port: &str) -> Option<&'a UiNode> {
     })
 }
 
+/// 找到端口对话框里的「保存 / 确定」按钮。
+///
+/// 只按 text 匹配（不匹配 content-desc），避免和页面右下角的「+」按钮
+/// （desc = Add）混淆。
+fn find_dialog_save<'a>(nodes: &'a [UiNode]) -> Option<&'a UiNode> {
+    if let Some(btn) = nodes.iter().find(|n| {
+        n.id == "android:id/button1" && n.enabled && n.bounds.x2 > n.bounds.x1
+    }) {
+        return Some(btn);
+    }
+    const LABELS: [&str; 5] = ["Save", "保存", "确定", "OK", "完成"];
+    nodes.iter().find(|n| {
+        let t = n.text.trim();
+        LABELS.iter().any(|l| t.eq_ignore_ascii_case(l))
+    })
+}
+
+/// 打开「+」对话框，输入端口并保存。
+///
+/// 关键：点进输入框后软键盘弹出，Compose 对话框会整体上移。如果沿用
+/// 输入前的节点坐标去点「保存」，就会点到对话框外的遮罩上，直接把对话框
+/// 关掉——表现为「输入了但没保存」。因此保存按钮必须从**输入后的最新
+/// 节点树**里取坐标。
+async fn add_port_via_dialog(adb: &Adb, port: u16) -> Result<()> {
+    let port_str = port.to_string();
+
+    let nodes = dump_retry(adb, 3).await?;
+    let add_btn = nodes
+        .iter()
+        .find(|n| {
+            let d = n.desc.trim();
+            let t = n.text.trim();
+            d.eq_ignore_ascii_case("add")
+                || d == "添加"
+                || d == "新增"
+                || t.eq_ignore_ascii_case("add")
+                || t == "添加"
+                || t == "新增"
+        })
+        .ok_or_else(|| anyhow!("未能在安全页找到「添加端口」按钮（+）。"))?;
+    uia::tap_node(adb, add_btn).await?;
+    tokio::time::sleep(Duration::from_millis(900)).await;
+
+    let dialog = dump_retry(adb, 3).await?;
+    let field = dialog
+        .iter()
+        .find(|n| n.class.contains("EditText") && n.enabled)
+        .cloned()
+        .ok_or_else(|| anyhow!("未能打开端口输入框。"))?;
+    uia::tap_node(adb, &field).await?;
+    // 等软键盘完整弹出，否则接下来 dump 到的还是旧布局
+    tokio::time::sleep(Duration::from_millis(900)).await;
+    uia::type_text(adb, &port_str).await?;
+    tokio::time::sleep(Duration::from_millis(600)).await;
+
+    // 重新 dump：此时对话框已经上移，保存按钮坐标是新的
+    let after_typing = dump_retry(adb, 3).await?;
+    let save = find_dialog_save(&after_typing)
+        .cloned()
+        .ok_or_else(|| anyhow!("未能在端口对话框中找到「保存」按钮。"))?;
+    uia::tap_node(adb, &save).await?;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+
+    let after = dump_retry(adb, 3).await?;
+    // 对话框还开着说明没保存成功（输入框里也带着端口号，不能只看端口文本）
+    let dialog_open = after
+        .iter()
+        .any(|n| n.class.contains("EditText") && n.enabled);
+    if dialog_open {
+        bail!("端口 {} 未保存：对话框仍然打开。", port);
+    }
+    if !after.iter().any(|n| n.text.contains(&port_str)) {
+        bail!("端口 {} 添加后未出现在允许列表中。", port);
+    }
+    Ok(())
+}
+
 /// 路径 2（新版）：在「设置 → 安全」页面里放行端口。
 async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
     open_security_page(adb).await?;
@@ -377,59 +454,29 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
         });
     }
 
-    // 情况 3：没有该端口 → 点右下角「+」新增
-    let add_btn = nodes
-        .iter()
-        .find(|n| {
-            let d = n.desc.trim();
-            let t = n.text.trim();
-            d.eq_ignore_ascii_case("add")
-                || d == "添加"
-                || d == "新增"
-                || t.eq_ignore_ascii_case("add")
-                || t == "添加"
-                || t == "新增"
-        })
-        .ok_or_else(|| anyhow!("未能在安全页找到「添加端口」按钮（+）。"))?;
-    uia::tap_node(adb, add_btn).await?;
-    tokio::time::sleep(Duration::from_millis(900)).await;
-
-    let dialog = dump_retry(adb, 3).await?;
-    let field = dialog
-        .iter()
-        .find(|n| n.class.contains("EditText") && n.enabled)
-        .cloned()
-        .ok_or_else(|| anyhow!("未能打开端口输入框。"))?;
-    uia::tap_node(adb, &field).await?;
-    tokio::time::sleep(Duration::from_millis(600)).await;
-    uia::type_text(adb, &port_str).await?;
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    let save = dialog
-        .iter()
-        .find(|n| {
-            let t = n.text.trim();
-            t.eq_ignore_ascii_case("save") || t == "保存" || t == "确定" || t == "OK"
-        })
-        .cloned();
-    match save {
-        Some(btn) => uia::tap_node(adb, &btn).await?,
-        None => uia::press_enter(adb).await?,
+    // 情况 3：没有该端口 → 点右下角「+」新增。
+    // 自动化过程中对话框可能被误触关闭，失败时重新进入安全页再试，
+    // 最多 3 次。
+    let mut last_err = String::new();
+    for attempt in 0..3 {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(800)).await;
+            open_security_page(adb).await?;
+        }
+        match add_port_via_dialog(adb, port).await {
+            Ok(()) => {
+                return Ok(PortResult {
+                    port,
+                    ok: true,
+                    action: "added".to_string(),
+                    message: format!("已把端口 {} 加入「设置 → 安全」的允许列表。", port),
+                    active: false,
+                });
+            }
+            Err(e) => last_err = e.to_string(),
+        }
     }
-    tokio::time::sleep(Duration::from_millis(1200)).await;
-
-    let after = uia::dump(adb).await?;
-    if !after.iter().any(|n| n.text.contains(&port_str)) {
-        bail!("端口 {} 添加后未出现在允许列表中。", port);
-    }
-
-    Ok(PortResult {
-        port,
-        ok: true,
-        action: "added".to_string(),
-        message: format!("已把端口 {} 加入「设置 → 安全」的允许列表。", port),
-        active: false,
-    })
+    bail!("端口 {} 添加失败：{}", port, last_err)
 }
 
 /// 路径 2：在「端口控制」界面里放行（老版本）。
@@ -502,24 +549,15 @@ async fn enable_port_via_settings(adb: &Adb, port: u16) -> Result<PortResult> {
         })
         .ok_or_else(|| anyhow!("未能打开端口输入框。"))?;
     uia::tap_node(adb, field).await?;
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    // 等软键盘弹出，之后对话框位置会变，保存按钮必须重新定位
+    tokio::time::sleep(Duration::from_millis(900)).await;
     uia::type_text(adb, &port_str).await?;
-    tokio::time::sleep(Duration::from_millis(400)).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
 
-    let save = dialog_nodes
-        .iter()
-        .find(|n| n.id == "android:id/button1" && n.enabled)
-        .or_else(|| uia::find_by_text(&dialog_nodes, "Save"))
-        .or_else(|| uia::find_by_text(&dialog_nodes, "保存"))
-        .or_else(|| uia::find_by_text(&dialog_nodes, "确定"))
-        .cloned();
-    match save {
-        Some(btn) => {
-            uia::tap_node(adb, &btn).await?;
-        }
-        None => {
-            uia::press_enter(adb).await?;
-        }
+    let after_typing = dump_retry(adb, 3).await?;
+    match find_dialog_save(&after_typing) {
+        Some(btn) => uia::tap_node(adb, btn).await?,
+        None => uia::press_enter(adb).await?,
     }
     tokio::time::sleep(Duration::from_millis(1200)).await;
 

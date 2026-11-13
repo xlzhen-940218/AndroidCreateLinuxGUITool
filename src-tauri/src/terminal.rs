@@ -261,6 +261,28 @@ pub struct ImageStatus {
     pub message: String,
 }
 
+/// 只读检测 Linux 系统镜像是否已经装好。
+///
+/// 节点树只有在 Terminal 位于前台时才能判断，所以当当前页面读不到
+/// Terminal 状态（例如刚切换设备、还停在桌面）时，先打开 Terminal
+/// 再检测一次。整个过程不会点击任何安装按钮，重复调用也是安全的。
+pub async fn detect_image(adb: &Adb) -> Result<ImageStatus> {
+    let mut found = phase(adb).await.unwrap_or(TerminalPhase::Unknown);
+    if matches!(found, TerminalPhase::Unknown | TerminalPhase::NotInstalled) {
+        if open(adb).await.is_ok() {
+            let _ = dismiss_permission_dialogs(adb).await;
+            tokio::time::sleep(Duration::from_millis(2500)).await;
+            found = phase(adb).await.unwrap_or(found);
+        }
+    }
+    Ok(ImageStatus {
+        phase: found,
+        ready: found == TerminalPhase::Ready,
+        // 文案由前端按当前界面语言生成，这里只回传阶段
+        message: String::new(),
+    })
+}
+
 /// 「安装 Linux 系统」步骤：授权 → 打开 Terminal → 必要时点安装 → 等到终端就绪。
 ///
 /// 这是「Linux 开发环境」与「安装桌面环境」之间的独立工作流：

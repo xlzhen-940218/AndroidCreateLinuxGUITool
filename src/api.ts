@@ -33,6 +33,8 @@ export const api = {
     invoke<boolean>("click_allow", { serial, adbPath }),
   terminalPhase: (serial: string, adbPath?: string) =>
     invoke<TerminalPhase>("terminal_phase", { serial, adbPath }),
+  detectLinuxImage: (serial: string, adbPath?: string) =>
+    invoke<ImageStatus>("detect_linux_image", { serial, adbPath }),
   installLinuxImage: (serial: string, adbPath?: string) =>
     invoke<ImageStatus>("install_linux_image", { serial, adbPath }),
   openTerminal: (serial: string, adbPath?: string) =>

@@ -79,6 +79,7 @@ const phase = ref<TerminalPhase>("unknown");
 const imageStatus = ref<ImageStatus | null>(null);
 const installed = ref<InstalledReport | null>(null);
 const detecting = ref(false);
+const imageChecking = ref(false);
 const install = ref<InstallStatus>({
   state: "idle",
   message: "",
@@ -493,6 +494,33 @@ async function refreshPhase() {
   }
 }
 
+/** 只读检测 Linux 系统是否已经安装（进入步骤时自动执行，不触发下载）。 */
+async function detectImage() {
+  if (!serial.value) return;
+  imageChecking.value = true;
+  try {
+    const r = await api.detectLinuxImage(
+      serial.value,
+      adbPathInput.value.trim() || undefined,
+    );
+    imageStatus.value = { ...r, message: t(`image.check.${r.phase}`) };
+    phase.value = r.phase;
+    if (r.ready) {
+      done.image = true;
+      failed.image = false;
+    }
+  } catch (e) {
+    imageStatus.value = {
+      phase: "unknown",
+      ready: false,
+      message: `${t("image.check.unknown")}\n${String(e)}`,
+    };
+    phase.value = "unknown";
+  } finally {
+    imageChecking.value = false;
+  }
+}
+
 /** 安装/启动 Linux 系统镜像（位于「Linux 开发环境」与「安装桌面环境」之间）。 */
 async function installImage() {
   if (!serial.value) {
@@ -528,6 +556,7 @@ async function installImage() {
     }
     done.image = true;
     failed.image = false;
+    imageStatus.value = { ...r, message: t("image.check.ready") };
     current.value = Math.max(current.value, 5);
     showDialog({
       title: t("image.doneTitle"),
@@ -885,8 +914,8 @@ function goTo(i: number) {
   const prevDone = i > 0 && done[stepIds[i - 1]];
   if (i <= current.value || done[stepIds[i]] || prevDone) {
     current.value = i;
-    // 进入「安装 Linux 系统」步骤时先刷新一次终端状态
-    if (i === 4 && serial.value) void refreshPhase();
+    // 进入「安装 Linux 系统」步骤时自动检测是否已安装
+    if (i === 4 && serial.value) void detectImage();
     // 进入安装步骤时先看看虚拟机里是不是已经装过了
     if (i === 5 && !installed.value && serial.value) void detectInstalled(true);
   }
@@ -1088,8 +1117,11 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           <p class="lead">{{ t("image.lead") }}</p>
           <div class="kv">
             <div><span>{{ t("image.phase") }}</span><code>{{ phaseLabel }}</code></div>
-            <div v-if="imageStatus?.message">
-              <span>{{ t("image.progress") }}</span><code>{{ imageStatus.message }}</code>
+            <div v-if="imageChecking">
+              <span>{{ t("image.checkLabel") }}</span><code>{{ t("image.detecting") }}</code>
+            </div>
+            <div v-else-if="imageStatus?.message">
+              <span>{{ t("image.checkLabel") }}</span><code>{{ imageStatus.message }}</code>
             </div>
           </div>
           <ul class="notes">
@@ -1097,11 +1129,11 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             <li>{{ t("image.note2") }}</li>
           </ul>
           <div class="actions">
-            <button class="btn primary" :disabled="busy || !serial" @click="installImage()">
+            <button class="btn primary" :disabled="busy || imageChecking || !serial" @click="installImage()">
               {{ busy ? t("image.working") : t("image.start") }}
             </button>
-            <button class="btn ghost" :disabled="busy || !serial" @click="refreshPhase()">
-              {{ t("btn.refresh") }}
+            <button class="btn ghost" :disabled="busy || imageChecking || !serial" @click="detectImage()">
+              {{ imageChecking ? t("image.detecting") : t("image.detect") }}
             </button>
             <button
               class="btn ghost"
@@ -1255,8 +1287,8 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           </div>
         </section>
 
-        <!-- 步骤 7：VNC -->
-        <section v-if="current === 6" class="card">
+        <!-- 步骤 10：远程桌面 -->
+        <section v-if="stepIds[current] === 'vnc'" class="card">
           <h2>{{ t("vnc.title") }}</h2>
           <p class="lead">{{ t("vnc.lead") }}</p>
           <div v-if="portResult" class="kv">

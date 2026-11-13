@@ -155,11 +155,6 @@ pub fn find_by_id<'a>(nodes: &'a [UiNode], id_suffix: &str) -> Option<&'a UiNode
     })
 }
 
-/// 按文本精确匹配查找可点击节点。
-pub fn find_by_text<'a>(nodes: &'a [UiNode], text: &str) -> Option<&'a UiNode> {
-    nodes.iter().find(|n| n.text.trim() == text)
-}
-
 /// 节点树里是否存在处于焦点状态的文本输入框。
 ///
 /// xterm.js 会用一个隐藏的 `<textarea>` 接收输入法输入，

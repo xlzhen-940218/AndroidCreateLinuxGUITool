@@ -118,6 +118,10 @@ case "$DESKTOP" in
     *)         fail "未知的桌面环境类型: $DESKTOP" ;;
 esac
 VNC_PORT=$(( 5900 + ${VNC_DISPLAY#:} ))
+# apt/dpkg 的通用参数，所有阶段（base/desktop/apps/vncsvc）都会用到，
+# 必须放在阶段判断之外，否则单独跑 desktop 等阶段会因 set -u 报
+# "APT_OPTS: 未绑定的变量"。
+APT_OPTS="-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
 
 # ============================ 阶段：系统基础 ============================
 if stage_on base; then
@@ -138,8 +142,6 @@ case "$DEB_VER" in
 esac
 echo "系统: Debian ${DEB_VER:-未知} (suite=$SUITE)"
 echo "架构: $(uname -m)   内核: $(uname -r)"
-
-APT_OPTS="-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
 
 # ---------------------- 修复上次中断留下的 dpkg 状态 ----------------------
 # 终端应用闪退 / 安装被取消会把 dpkg 留在"被中断"状态，之后所有 apt 命令
