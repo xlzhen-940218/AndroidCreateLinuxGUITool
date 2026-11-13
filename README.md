@@ -39,6 +39,7 @@ src-tauri\target\release\android-create-linux-gui-tool.exe
 
 ### 第 5 步说明
 
+- 进入本步骤或点「立即检测」时，会先在虚拟机内做一次只读检查，显示已安装的**桌面环境 / 常用软件 / 中文输入法 / TigerVNC**；已装过会提示「无需重复安装」，可直接前往远程桌面，按钮会变成「重新安装 / 补装组件」。
 - 首次使用若 Terminal 尚未安装系统镜像（约 600 MB），工具会自动点击安装并等待就绪。
 - 会先询问是否为中国用户：选「是」将切换国内镜像源（TUNA）、设置中文语言与 Fcitx5 输入法；选「否」使用 Debian 官方源与英文环境。
 - 可选桌面：XFCE（默认，约 1.2 GB）、GNOME、KDE Plasma、MATE、Cinnamon、LXQt、LXDE、GNOME Flashback。

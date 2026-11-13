@@ -92,6 +92,21 @@ export interface InstallStatus {
   scriptPath: string;
 }
 
+/** 虚拟机内已安装环境的检测结果。 */
+export interface InstalledReport {
+  checked: boolean;
+  desktop: boolean;
+  desktopName: string;
+  desktops: string[];
+  apps: boolean;
+  appsInstalled: number;
+  appsTotal: number;
+  ime: boolean;
+  vnc: boolean;
+  ssh: boolean;
+  message: string;
+}
+
 export interface PortResult {
   port: number;
   ok: boolean;

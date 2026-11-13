@@ -626,6 +626,7 @@ pub fn run() {
             commands::click_allow,
             commands::terminal_phase,
             commands::open_terminal,
+            commands::detect_installed,
             commands::run_install,
             commands::install_status,
             commands::cancel_install,

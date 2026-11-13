@@ -11,6 +11,7 @@ import type {
   EnvInfo,
   InstallOptions,
   InstallStatus,
+  InstalledReport,
   PortResult,
   TerminalPhase,
   VncSetup,
@@ -48,6 +49,8 @@ const serial = ref("");
 const avf = ref<AvfReport | null>(null);
 const devopts = ref<DevOptionReport | null>(null);
 const phase = ref<TerminalPhase>("unknown");
+const installed = ref<InstalledReport | null>(null);
+const detecting = ref(false);
 const install = ref<InstallStatus>({
   state: "idle",
   message: "",
@@ -440,6 +443,37 @@ async function refreshPhase() {
   }
 }
 
+/** 检测虚拟机内已安装的桌面 / 常用软件 / 输入法。 */
+async function detectInstalled(silent = false) {
+  if (!serial.value || detecting.value || installRunning.value) return;
+  detecting.value = true;
+  try {
+    installed.value = await api.detectInstalled(
+      serial.value,
+      adbPathInput.value.trim() || undefined,
+    );
+  } catch (e) {
+    installed.value = null;
+    if (!silent) {
+      showDialog({
+        title: "检测已安装环境失败",
+        message: String(e),
+        tone: "warn",
+        buttons: [{ id: "dismiss", label: "关闭" }],
+      });
+    }
+  } finally {
+    detecting.value = false;
+  }
+}
+
+/** 检测到已装好桌面时，跳过安装直接进入远程桌面。 */
+function skipToVnc() {
+  done.install = true;
+  failed.install = false;
+  current.value = 5;
+}
+
 async function startInstall() {
   if (!serial.value) {
     showDialog({
@@ -716,7 +750,11 @@ onUnmounted(() => {
 function goTo(i: number) {
   // 已完成的步骤可回看；只要前一步已完成，也允许进入下一步
   const prevDone = i > 0 && done[steps[i - 1].id];
-  if (i <= current.value || done[steps[i].id] || prevDone) current.value = i;
+  if (i <= current.value || done[steps[i].id] || prevDone) {
+    current.value = i;
+    // 进入安装步骤时先看看虚拟机里是不是已经装过了
+    if (i === 4 && !installed.value && serial.value) void detectInstalled(true);
+  }
 }
 
 function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
@@ -956,9 +994,53 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             <button class="link" @click="refreshPhase()">刷新</button>
           </div>
 
+          <div class="detect">
+            <div class="detect-head">
+              <span>已安装环境检测</span>
+              <button
+                class="link"
+                :disabled="detecting || installRunning || !serial"
+                @click="detectInstalled(false)"
+              >
+                {{ detecting ? "检测中…" : installed ? "重新检测" : "立即检测" }}
+              </button>
+            </div>
+            <div v-if="detecting" class="detect-line">
+              正在虚拟机内检查已安装的组件，请保持手机亮屏…
+            </div>
+            <div v-else-if="installed" class="detect-grid">
+              <span :class="installed.desktop ? 'ok' : 'miss'">
+                桌面环境：{{ installed.desktop ? installed.desktopName : "未检测到" }}
+              </span>
+              <span :class="installed.apps ? 'ok' : 'miss'">
+                常用软件：{{ installed.appsInstalled }}/{{ installed.appsTotal }}
+              </span>
+              <span :class="installed.ime ? 'ok' : 'miss'">
+                中文输入法：{{ installed.ime ? "已安装" : "未安装" }}
+              </span>
+              <span :class="installed.vnc ? 'ok' : 'miss'">
+                TigerVNC：{{ installed.vnc ? "已安装" : "未安装" }}
+              </span>
+            </div>
+            <div v-else class="detect-line">
+              已装过桌面可先检测，避免重复安装（只做只读检查，不会改动系统）。
+            </div>
+          </div>
+
+          <div v-if="installed?.desktop && !done.install" class="detect-tip">
+            已检测到 {{ installed.desktopName }} 桌面环境，无需重复安装。
+            <button class="link" @click="skipToVnc()">前往远程桌面</button>
+          </div>
+
           <div class="actions">
             <button class="btn primary" :disabled="busy || installRunning || !serial" @click="startInstall()">
-              {{ installRunning ? "安装进行中…" : "开始安装桌面环境" }}
+              {{
+                installRunning
+                  ? "安装进行中…"
+                  : installed?.desktop
+                    ? "重新安装 / 补装组件"
+                    : "开始安装桌面环境"
+              }}
             </button>
           </div>
         </section>

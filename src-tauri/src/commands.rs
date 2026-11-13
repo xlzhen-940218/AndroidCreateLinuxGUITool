@@ -220,6 +220,20 @@ pub async fn open_terminal(
     terminal::open(&adb).await.map_err(|e| e.to_string())
 }
 
+/// 检测虚拟机内已安装的桌面环境、常用软件与中文输入法。
+#[tauri::command]
+pub async fn detect_installed(
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+) -> Result<installer::InstalledReport, String> {
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    let workdir = state.workdir();
+    installer::detect_installed(&adb, &workdir)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 执行完整安装流程（准备 + 启动 + 后台监控）。
 #[tauri::command]
 pub async fn run_install(

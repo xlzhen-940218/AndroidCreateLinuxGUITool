@@ -44,6 +44,11 @@ const SCRIPT_NAME: &str = "acl_install.sh";
 const LOG_NAME: &str = "acl_install.log";
 const TEMPLATE: &str = include_str!("../resources/install-desktop.sh");
 
+/// 环境检测脚本（只读检查，不改动系统）。
+const PROBE_SCRIPT_NAME: &str = "acl_probe.sh";
+const PROBE_LOG_NAME: &str = "acl_probe.log";
+const PROBE_TEMPLATE: &str = include_str!("../resources/detect-installed.sh");
+
 /// 安装选项（来自前端）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -255,6 +260,158 @@ fn parse_result(content: &str) -> Option<(bool, String)> {
         }
     }
     None
+}
+
+/// 虚拟机内已安装环境的检测结果。
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledReport {
+    /// 是否真正执行并取回了检测结果。
+    pub checked: bool,
+    /// 是否检测到任意桌面环境。
+    pub desktop: bool,
+    /// 检测到的桌面名称（命中多个时取第一个）。
+    pub desktop_name: String,
+    /// 命中的桌面 id（xfce / gnome / kde ...）。
+    pub desktops: Vec<String>,
+    /// 常用软件是否全部安装。
+    pub apps: bool,
+    pub apps_installed: u32,
+    pub apps_total: u32,
+    pub ime: bool,
+    pub vnc: bool,
+    pub ssh: bool,
+    pub message: String,
+}
+
+fn desktop_label(id: &str) -> &'static str {
+    match id {
+        "xfce" => "XFCE",
+        "gnome" => "GNOME",
+        "kde" => "KDE Plasma",
+        "mate" => "MATE",
+        "cinnamon" => "Cinnamon",
+        "lxqt" => "LXQt",
+        "lxde" => "LXDE",
+        "flashback" => "GNOME Flashback",
+        _ => "未知桌面",
+    }
+}
+
+/// 解析检测脚本输出的 KEY=VALUE 行。
+fn parse_probe(content: &str) -> InstalledReport {
+    let mut r = InstalledReport {
+        checked: true,
+        ..Default::default()
+    };
+    for line in content.lines() {
+        let line = line.trim();
+        if let Some(v) = line.strip_prefix("DESKTOP=") {
+            r.desktops = v
+                .split(',')
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| s.trim().to_string())
+                .collect();
+            r.desktop = !r.desktops.is_empty();
+            r.desktop_name = r
+                .desktops
+                .first()
+                .map(|id| desktop_label(id).to_string())
+                .unwrap_or_default();
+        } else if let Some(v) = line.strip_prefix("APPS=") {
+            if let Some((have, total)) = v.split_once('/') {
+                r.apps_installed = have.trim().parse().unwrap_or(0);
+                r.apps_total = total.trim().parse().unwrap_or(0);
+                r.apps = r.apps_total > 0 && r.apps_installed == r.apps_total;
+            }
+        } else if let Some(v) = line.strip_prefix("IME=") {
+            r.ime = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("VNC=") {
+            r.vnc = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("SSH=") {
+            r.ssh = v.trim() == "1";
+        }
+    }
+    r.message = if r.desktop {
+        format!("已检测到桌面环境：{}", r.desktop_name)
+    } else {
+        "未检测到已安装的桌面环境".to_string()
+    };
+    r
+}
+
+/// 在虚拟机内检测已安装的桌面环境、常用软件与中文输入法。
+///
+/// 走与安装相同的共享目录通道：推送检测脚本 → 在 Terminal 中 `bash` 执行 →
+/// 轮询脚本写回的日志。检测脚本只读取 `dpkg` 状态，不会改动系统。
+pub async fn detect_installed(adb: &Adb, workdir: &std::path::Path) -> Result<InstalledReport> {
+    // 终端没就绪时先尝试打开（虚拟机冷启动可能需要一段时间）
+    let current = terminal::phase(adb).await.unwrap_or(TerminalPhase::Unknown);
+    if current != TerminalPhase::Ready {
+        terminal::open(adb).await?;
+        let p = terminal::wait_ready(adb, 180).await?;
+        if p != TerminalPhase::Ready {
+            bail!(
+                "Linux Terminal 未就绪（当前状态：{}），暂时无法检测已安装环境。",
+                p.label()
+            );
+        }
+    }
+
+    let mapping = probe_shared(adb).await?;
+    let guest_script = format!(
+        "{}/{}",
+        mapping.guest_dir.trim_end_matches('/'),
+        PROBE_SCRIPT_NAME
+    );
+    let guest_log = format!(
+        "{}/{}",
+        mapping.guest_dir.trim_end_matches('/'),
+        PROBE_LOG_NAME
+    );
+    let phone_log = format!(
+        "{}/{}",
+        mapping.phone_dir.trim_end_matches('/'),
+        PROBE_LOG_NAME
+    );
+
+    tokio::fs::create_dir_all(workdir).await.ok();
+    let local = workdir.join(PROBE_SCRIPT_NAME);
+    tokio::fs::write(&local, PROBE_TEMPLATE).await?;
+    adb.push(
+        &local,
+        &format!(
+            "{}/{}",
+            mapping.phone_dir.trim_end_matches('/'),
+            PROBE_SCRIPT_NAME
+        ),
+    )
+    .await?;
+
+    adb.shell(&format!("rm -f '{}'", phone_log)).await.ok();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let command = format!("bash {} {}", guest_script, guest_log);
+    terminal::run_command(adb, &command).await?;
+
+    for round in 0..40 {
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        let content = adb
+            .shell(&format!("cat '{}' 2>/dev/null", phone_log))
+            .await
+            .unwrap_or_default();
+        if content.contains("@@DONE") {
+            return Ok(parse_probe(&content));
+        }
+        // 命令可能没被终端接收：10 秒还没有任何输出就重发一次
+        if round == 9 && content.trim().is_empty() {
+            let _ = terminal::run_command(adb, &command).await;
+        }
+    }
+
+    bail!(
+        "检测超时：虚拟机内没有返回结果。\n\
+         请确认手机保持亮屏，并手动点一下 Terminal 的命令行区域后重试。"
+    )
 }
 
 /// 后台监控日志文件并推送事件。

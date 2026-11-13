@@ -1,15 +1,17 @@
-//! Terminal 应用「端口控制」(Port control) 的自动化。
+//! Terminal 应用「端口放行」的自动化。
 //!
 //! AOSP 实现（packages/modules/Virtualization/android/TerminalApp）：
 //!   * `SettingsPortForwardingActivity` 展示虚拟机里正在监听的端口；
 //!   * "Saved allowed ports" 列表里的端口会被放行，虚拟机一旦监听即自动转发到手机本机；
 //!   * 放行状态保存在应用私有 SharedPreferences（".PORTS"），外部无法直接写。
 //!
-//! Android 17 起 Terminal 换成了 new2（Compose）实现，端口控制界面没有 resource-id，
-//! 也不再是独立 Activity。因此这里采用**两条路径**：
-//!   1) 通知栏放行（两个版本都有，字符串稳定）：虚拟机开始监听端口时，
+//! Android 17 起 Terminal 换成了 new2（Compose）实现，端口设置不再是独立 Activity，
+//! 而是藏在「⋮ → Settings → Security」里（Port control / Listening ports /
+//! Saved allowed ports）。因此这里采用**三条路径**：
+//!   1) 新版：主界面 ⋮ → Settings → Security，打开端口开关或点「+」新增；
+//!   2) 通知栏放行（两个版本都有，字符串稳定）：虚拟机开始监听端口时，
 //!      Terminal 会弹出「Terminal is requesting to open a new port / Accept」通知；
-//!   2) 端口控制界面（老版本有独立 Activity，按 resource-id 操作）。
+//!   3) 端口控制界面（老版本有独立 Activity，按 resource-id 操作）。
 
 use anyhow::{anyhow, bail, Result};
 use serde::Serialize;
@@ -176,116 +178,129 @@ pub async fn enable_port_via_notification(adb: &Adb, port: u16) -> Result<bool> 
     Ok(false)
 }
 
-/// 打开新版（new2）的「Port control」页面：主界面 → 溢出菜单 → Port control。
+/// 打开新版（new2）Terminal 的「设置 → 安全」页面。
 ///
-/// Android 17 起 Terminal 不再有独立的端口控制 Activity，页面是 MainActivity
-/// 里 Compose 实现的一个界面，只能从右上角溢出菜单进入。
-async fn open_port_control_new2(adb: &Adb) -> Result<()> {
+/// Android 17 起 Terminal 没有独立的端口控制 Activity，正确路径是：
+/// 主界面右上角「⋮」（More options）→ Settings → Security。
+/// Security 页面里才有 Port control / Listening ports / Saved allowed ports。
+async fn open_security_page(adb: &Adb) -> Result<()> {
     let activity = crate::terminal::resolve_launch_activity(adb).await?;
     adb.start_activity(&activity).await?;
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    tokio::time::sleep(Duration::from_millis(1600)).await;
 
+    // 1) 溢出菜单「⋮」。真正可点击的是包着图标的父节点，
+    //    但点在图标中心同样会落到父节点上。
     let nodes = uia::dump(adb).await?;
     let more = nodes
         .iter()
         .find(|n| {
             let d = n.desc.to_lowercase();
-            n.clickable
-                && (d.contains("more options")
-                    || d.contains("更多选项")
-                    || d.contains("overflow")
-                    || n.text.trim() == "⋮"
-                    || n.text.trim() == "...")
+            d.contains("more options") || d.contains("更多选项")
         })
-        .cloned()
-        .ok_or_else(|| anyhow!("未能在 Terminal 主界面找到溢出菜单（⋮）。"))?;
-    uia::tap_node(adb, &more).await?;
-    tokio::time::sleep(Duration::from_millis(1200)).await;
+        .or_else(|| {
+            // 兜底：顶栏右侧的按钮
+            nodes
+                .iter()
+                .find(|n| n.clickable && n.bounds.y2 < 400 && n.bounds.x1 > 700)
+        })
+        .ok_or_else(|| anyhow!("未能在 Terminal 主界面找到「更多选项（⋮）」按钮。"))?;
+    uia::tap_node(adb, more).await?;
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
+    // 2) 下拉菜单里的 Settings
     let nodes = uia::dump(adb).await?;
-    let item = nodes
+    let settings = nodes
         .iter()
         .find(|n| {
-            let t = n.text.trim().to_lowercase();
-            let d = n.desc.to_lowercase();
-            t == "port control"
-                || d == "port control"
-                || t == "端口控制"
-                || t == "port forwarding"
-                || d == "port forwarding"
+            let t = n.text.trim();
+            t.eq_ignore_ascii_case("settings") || t == "设置"
         })
-        .cloned()
-        .ok_or_else(|| anyhow!("未能在菜单中找到「Port control / 端口控制」。"))?;
-    uia::tap_node(adb, &item).await?;
+        .ok_or_else(|| anyhow!("未能在菜单中找到「Settings / 设置」。"))?;
+    uia::tap_node(adb, settings).await?;
+    tokio::time::sleep(Duration::from_millis(1300)).await;
+
+    // 3) 设置页里的 Security
+    let nodes = uia::dump(adb).await?;
+    let security = nodes
+        .iter()
+        .find(|n| {
+            let t = n.text.trim();
+            t.eq_ignore_ascii_case("security") || t == "安全"
+        })
+        .ok_or_else(|| anyhow!("未能在设置页中找到「Security / 安全」。"))?;
+    uia::tap_node(adb, security).await?;
     tokio::time::sleep(Duration::from_millis(1500)).await;
     Ok(())
 }
 
-/// 路径 2（新版）：在「Port control」页面里放行端口。
-async fn enable_port_via_settings_new2(adb: &Adb, port: u16) -> Result<PortResult> {
-    open_port_control_new2(adb).await?;
+/// 在安全页里找到某个端口所在行的开关。
+fn port_row<'a>(nodes: &'a [UiNode], port: &str) -> Option<&'a UiNode> {
+    let label = nodes.iter().find(|n| {
+        let t = n.text.trim();
+        t.contains(&format!("({})", port))
+            || t.split(|c: char| !c.is_ascii_digit()).any(|w| w == port)
+    })?;
+    nodes.iter().find(|n| {
+        n.checkable
+            && n.bounds.y1 < label.bounds.y2
+            && n.bounds.y2 > label.bounds.y1
+    })
+}
+
+/// 路径 2（新版）：在「设置 → 安全」页面里放行端口。
+async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
+    open_security_page(adb).await?;
     let port_str = port.to_string();
 
     let nodes = uia::dump(adb).await?;
+    let on_security = nodes.iter().any(|n| {
+        let t = n.text.trim();
+        t.eq_ignore_ascii_case("Port control")
+            || t.eq_ignore_ascii_case("Listening ports")
+            || t.eq_ignore_ascii_case("Auto-forward all ports")
+    });
+    if !on_security {
+        bail!("未能进入 Terminal 的「设置 → 安全」页面。");
+    }
 
-    // 情况 1：端口已经出现在「Listening ports」里 → 打开同行的开关
-    if let Some(label) = nodes.iter().find(|n| n.text.trim() == port_str) {
-        let sw = nodes.iter().find(|c| {
-            (c.checkable || c.class.contains("Switch"))
-                && c.bounds.y1 >= label.bounds.y1 - 48
-                && c.bounds.y2 <= label.bounds.y2 + 48
-        });
-        if let Some(sw) = sw {
-            if !sw.checked {
-                uia::tap_node(adb, sw).await?;
-                tokio::time::sleep(Duration::from_millis(1000)).await;
-            }
+    // 情况 1：Listening ports 里已经有该端口 → 打开同行开关
+    if let Some(sw) = port_row(&nodes, &port_str) {
+        if sw.checked {
             return Ok(PortResult {
                 port,
                 ok: true,
-                action: "switched_on".to_string(),
-                message: format!("已在「端口控制」的 Listening ports 中放行端口 {}。", port),
+                action: "already_enabled".to_string(),
+                message: format!("端口 {} 已在 Terminal「设置 → 安全」中放行。", port),
                 active: true,
             });
         }
-    }
-
-    // 情况 2：端口已在「Saved allowed ports」列表中
-    if nodes.iter().any(|n| {
-        n.text.trim() == port_str
-            && n.bounds.y1
-                > nodes
-                    .iter()
-                    .filter(|x| x.text.trim().eq_ignore_ascii_case("Saved allowed ports"))
-                    .map(|x| x.bounds.y1)
-                    .max()
-                    .unwrap_or(0)
-    }) {
+        uia::tap_node(adb, sw).await?;
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        let after = uia::dump(adb).await?;
+        let enabled = port_row(&after, &port_str)
+            .map(|s| s.checked)
+            .unwrap_or(true);
         return Ok(PortResult {
             port,
-            ok: true,
-            action: "already_enabled".to_string(),
-            message: format!("端口 {} 已在允许列表中，虚拟机开始监听后自动生效。", port),
-            active: false,
+            ok: enabled,
+            action: "switched_on".to_string(),
+            message: if enabled {
+                format!("已在 Terminal「设置 → 安全」中放行端口 {}。", port)
+            } else {
+                format!("端口 {} 的开关未能打开，请手动确认。", port)
+            },
+            active: true,
         });
     }
 
-    // 情况 3：点「Allow a new port」新增
+    // 情况 2：没有该端口 → 点右下角「+」新增
     let add_btn = nodes
         .iter()
-        .find(|n| {
-            let t = n.text.trim().to_lowercase();
-            let d = n.desc.to_lowercase();
-            t.contains("allow a new port")
-                || d.contains("allow a new port")
-                || t.contains("新增端口")
-                || t.contains("添加端口")
-                || (n.clickable && d == "add")
-        })
-        .cloned()
-        .ok_or_else(|| anyhow!("未能在「Port control」页面中找到「Allow a new port」按钮。"))?;
-    uia::tap_node(adb, &add_btn).await?;
-    tokio::time::sleep(Duration::from_millis(1000)).await;
+        .find(|n| n.desc.trim().eq_ignore_ascii_case("add"))
+        .or_else(|| uia::find_by_text(&nodes, "Add"))
+        .ok_or_else(|| anyhow!("未能在安全页找到「添加端口」按钮（+）。"))?;
+    uia::tap_node(adb, add_btn).await?;
+    tokio::time::sleep(Duration::from_millis(900)).await;
 
     let dialog = uia::dump(adb).await?;
     let field = dialog
@@ -294,33 +309,33 @@ async fn enable_port_via_settings_new2(adb: &Adb, port: u16) -> Result<PortResul
         .cloned()
         .ok_or_else(|| anyhow!("未能打开端口输入框。"))?;
     uia::tap_node(adb, &field).await?;
-    tokio::time::sleep(Duration::from_millis(500)).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
     uia::type_text(adb, &port_str).await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let save = dialog
         .iter()
-        .find(|n| n.id == "android:id/button1" && n.enabled)
-        .or_else(|| uia::find_by_text(&dialog, "OK"))
-        .or_else(|| uia::find_by_text(&dialog, "Save"))
-        .or_else(|| uia::find_by_text(&dialog, "确定"))
-        .or_else(|| uia::find_by_text(&dialog, "允许"))
+        .find(|n| {
+            let t = n.text.trim();
+            t.eq_ignore_ascii_case("save") || t == "保存"
+        })
         .cloned();
     match save {
-        Some(btn) => {
-            uia::tap_node(adb, &btn).await?;
-        }
-        None => {
-            uia::press_enter(adb).await?;
-        }
+        Some(btn) => uia::tap_node(adb, &btn).await?,
+        None => uia::press_enter(adb).await?,
     }
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+
+    let after = uia::dump(adb).await?;
+    if !after.iter().any(|n| n.text.contains(&port_str)) {
+        bail!("端口 {} 添加后未出现在允许列表中。", port);
+    }
 
     Ok(PortResult {
         port,
         ok: true,
         action: "added".to_string(),
-        message: format!("已把端口 {} 加入允许列表。", port),
+        message: format!("已把端口 {} 加入「设置 → 安全」的允许列表。", port),
         active: false,
     })
 }
@@ -433,31 +448,31 @@ async fn enable_port_via_settings(adb: &Adb, port: u16) -> Result<PortResult> {
     })
 }
 
-/// 放行一个端口：先尝试通知栏，再尝试端口控制界面。
+/// 放行一个端口：新版走「设置 → 安全」，失败再尝试通知栏与旧版界面。
 pub async fn enable_port(adb: &Adb, port: u16) -> Result<PortResult> {
-    // 1) 通知栏（通用，优先）
-    if let Ok(true) = enable_port_via_notification(adb, port).await {
-        let active = device_listens_on(adb, port).await;
-        return Ok(PortResult {
-            port,
-            ok: true,
-            action: "notification".to_string(),
-            message: if active {
-                format!("已在通知栏确认放行端口 {}，手机端已开始转发。", port)
-            } else {
-                format!(
-                    "已在通知栏确认放行端口 {}。若稍后仍连不上，请确认 Terminal 应用保持运行。",
-                    port
-                )
-            },
-            active,
-        });
-    }
-
-    // 2) 新版（new2）的「Port control」页面
-    match enable_port_via_settings_new2(adb, port).await {
-        Ok(r) => return Ok(r),
+    // 1) 新版（new2）Terminal：⋮ → Settings → Security
+    match enable_port_via_security(adb, port).await {
+        Ok(r) => Ok(r),
         Err(e_new) => {
+            // 2) 通知栏（新老版本通用）
+            if let Ok(true) = enable_port_via_notification(adb, port).await {
+                let active = device_listens_on(adb, port).await;
+                return Ok(PortResult {
+                    port,
+                    ok: true,
+                    action: "notification".to_string(),
+                    message: if active {
+                        format!("已在通知栏确认放行端口 {}，手机端已开始转发。", port)
+                    } else {
+                        format!(
+                            "已在通知栏确认放行端口 {}。若稍后仍连不上，请确认 Terminal 应用保持运行。",
+                            port
+                        )
+                    },
+                    active,
+                });
+            }
+
             // 3) 老版本的独立端口控制 Activity
             match enable_port_via_settings(adb, port).await {
                 Ok(r) => Ok(r),
@@ -466,10 +481,11 @@ pub async fn enable_port(adb: &Adb, port: u16) -> Result<PortResult> {
                     ok: false,
                     action: "manual".to_string(),
                     message: format!(
-                        "自动放行端口 {} 失败：{}\n（新版路径：{}）\n\n请手动处理：打开手机上的 Terminal 应用 → 右上角 ⋮ → Port control（端口控制），\
-                         在「Listening ports」里允许端口 {}，或用「Allow a new port」把它加进「Saved allowed ports」。\n\
-                         （旧版本路径：设置 → Port control）",
-                        port, e_new, e_old, port
+                        "自动放行端口 {} 失败：{}\n（旧版端口控制界面：{}）\n\n\
+                         请手动处理：打开手机上的 Terminal 应用 → 右上角 ⋮ → Settings → Security，\
+                         在「Listening ports」里打开端口 {} 的开关；\
+                         若列表中没有该端口，点右下角「+」输入 {} 保存即可。",
+                        port, e_new, e_old, port, port
                     ),
                     active: false,
                 }),

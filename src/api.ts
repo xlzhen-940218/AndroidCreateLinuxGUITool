@@ -7,6 +7,7 @@ import type {
   EnvInfo,
   InstallOptions,
   InstallStatus,
+  InstalledReport,
   PortResult,
   SecurityIssue,
   TerminalPhase,
@@ -33,6 +34,8 @@ export const api = {
     invoke<TerminalPhase>("terminal_phase", { serial, adbPath }),
   openTerminal: (serial: string, adbPath?: string) =>
     invoke<void>("open_terminal", { serial, adbPath }),
+  detectInstalled: (serial: string, adbPath?: string) =>
+    invoke<InstalledReport>("detect_installed", { serial, adbPath }),
   runInstall: (serial: string, options: InstallOptions, adbPath?: string) =>
     invoke<InstallStatus>("run_install", { serial, options, adbPath }),
   installStatus: () => invoke<InstallStatus>("install_status"),
