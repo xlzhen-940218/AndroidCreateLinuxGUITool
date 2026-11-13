@@ -13,6 +13,13 @@ pub const AVNC_FDROID_URL: &str = "https://f-droid.org/packages/com.gaurav.avnc/
 /// AVNC 最新版本信息（GitHub Releases API）。
 const AVNC_RELEASE_API: &str =
     "https://api.github.com/repos/gujjwal00/avnc/releases/latest";
+/// 随程序内置的 AVNC 安装包（离线可用，避免国内下载 GitHub 失败）。
+const BUNDLED_AVNC_APK: &[u8] = include_bytes!("../resources/avnc.apk");
+/// 内置安装包对应的版本号，仅用于提示文案。
+const BUNDLED_AVNC_TAG: &str = "3.3.1";
+/// 随程序内置的 TigerVNC Viewer（官方免安装独立版 1.16.0，离线可用）。
+const BUNDLED_VIEWER: &[u8] = include_bytes!("../resources/vncviewer.exe");
+pub const BUNDLED_VIEWER_VERSION: &str = "1.16.0";
 pub const TIGERVNC_DOWNLOAD_URL: &str = "https://tigervnc.org/download/";
 
 /// TigerVNC 查看器候选版本（新 → 旧）。
@@ -44,6 +51,27 @@ pub fn tool_data_dir() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
         .join("AndroidCreateLinuxGUITool")
+}
+
+/// 把内置的 TigerVNC Viewer 解压到工具数据目录，返回可执行文件路径。
+///
+/// 已解压过（且大小一致）时直接复用。Windows 以外的平台暂不内置。
+pub fn bundled_viewer() -> Option<PathBuf> {
+    if !cfg!(windows) {
+        return None;
+    }
+    let dir = tool_data_dir();
+    let target = dir.join("vncviewer.exe");
+    let up_to_date = target.is_file()
+        && std::fs::metadata(&target)
+            .map(|m| m.len() == BUNDLED_VIEWER.len() as u64)
+            .unwrap_or(false);
+    if up_to_date {
+        return Some(target);
+    }
+    std::fs::create_dir_all(&dir).ok()?;
+    std::fs::write(&target, BUNDLED_VIEWER).ok()?;
+    Some(target)
 }
 
 /// 找到系统里的 curl（Windows 10 1803+ 自带 curl.exe，macOS/Linux 自带 curl）。
@@ -247,7 +275,13 @@ pub async fn setup_forward(adb: &Adb, port: u16) -> Result<(bool, String)> {
 }
 
 /// 查找本机的 TigerVNC Viewer。
+///
+/// 优先返回程序内置的版本（离线可用、版本固定），其次才是系统里已安装的。
 pub fn find_tigervnc_viewer() -> Option<PathBuf> {
+    if let Some(p) = bundled_viewer() {
+        return Some(p);
+    }
+
     let mut candidates: Vec<PathBuf> = Vec::new();
 
     if cfg!(windows) {
@@ -408,8 +442,8 @@ pub async fn setup_with(
                     viewer_launched: false,
                     connect_hint: format!("127.0.0.1:{}", port),
                     message: format!(
-                        "{}\n\n也可以先在手机上使用 AVNC 连接（地址 127.0.0.1，端口 {}）。",
-                        e, port
+                        "{}\n\n也可以先在手机上使用 AVNC 连接（地址 127.0.0.1，端口 {}，密码 {}）。",
+                        e, port, password
                     ),
                 })
             }
@@ -487,74 +521,127 @@ fn find_avnc_apk(json: &str) -> Option<(String, String)> {
     None
 }
 
-/// 自动把 AVNC 安装到手机上：优先用 GitHub Releases 的最新 APK，
-/// 已安装则直接打开；任何一步失败都回退到 F-Droid 下载页引导手动安装。
-pub async fn install_avnc(
-    adb: &Adb,
-    progress: &mut (dyn FnMut(String) + Send),
-) -> Result<String> {
-    const HINT: &str = "请在 AVNC 中填写：地址 127.0.0.1，端口 5901。";
-
-    if avnc_installed(adb).await {
-        let launched = launch_avnc(adb).await;
-        return Ok(if launched {
-            format!("AVNC 已安装，已在手机上打开。\n{}", HINT)
-        } else {
-            format!("AVNC 已安装，请在手机桌面打开它。\n{}", HINT)
-        });
-    }
-
-    async fn manual(adb: &Adb, reason: String) -> Result<String> {
-        let _ = adb.start_view(AVNC_FDROID_URL).await;
-        Ok(format!(
-            "{}。已打开 F-Droid 下载页，可在手机上手动安装。\n地址 127.0.0.1，端口 5901。",
-            reason
-        ))
-    }
-
-    let curl = match find_curl() {
-        Some(c) => c,
-        None => {
-            return manual(adb, "系统里没有 curl，无法自动下载 AVNC 安装包".to_string()).await;
+/// 把内置 APK 写到磁盘（`adb install` 需要一个主机上的文件路径）。
+fn write_bundled_apk(path: &Path) -> Result<u64> {
+    if let Ok(meta) = std::fs::metadata(path) {
+        if meta.len() == BUNDLED_AVNC_APK.len() as u64 {
+            return Ok(meta.len());
         }
-    };
-
-    progress("正在查询 AVNC 最新版本…".to_string());
-    let json = match curl_get(&curl, AVNC_RELEASE_API).await {
-        Ok(j) => j,
-        Err(e) => return manual(adb, format!("查询 AVNC 最新版本失败：{}", e)).await,
-    };
-    let (tag, url) = match find_avnc_apk(&json) {
-        Some(v) => v,
-        None => return manual(adb, "GitHub Releases 中未找到 APK".to_string()).await,
-    };
-
-    let apk = tool_data_dir().join("avnc.apk");
-    progress(format!("正在下载 AVNC {} …", tag));
-    let size = match download_with_progress(&curl, &url, &apk, "AVNC", progress).await {
-        Ok(n) => n,
-        Err(e) => return manual(adb, format!("下载 AVNC 失败：{}", e)).await,
-    };
-    if size < 1_000_000 {
-        return manual(adb, format!("下载的 AVNC 安装包不完整（{} 字节）", size)).await;
     }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(path, BUNDLED_AVNC_APK)?;
+    Ok(BUNDLED_AVNC_APK.len() as u64)
+}
 
-    progress("正在把 AVNC 安装到手机…".to_string());
+/// 用 adb 安装一个本地 APK。
+async fn install_apk_file(adb: &Adb, apk: &Path) -> Result<()> {
     let out = adb
         .raw(&["install", "-r", &apk.to_string_lossy()])
         .await
         .map_err(|e| anyhow!("调用 adb install 失败: {}", e))?;
     let text = out.combined();
     if !out.ok() || !text.to_lowercase().contains("success") {
-        return manual(adb, format!("自动安装失败：{}", text.trim())).await;
+        bail!("{}", text.trim());
+    }
+    Ok(())
+}
+
+/// 自动把 AVNC 安装到手机上：优先使用程序内置的安装包（离线可用），
+/// 内置的安装失败时再尝试 GitHub Releases 的最新版；已安装则直接打开。
+pub async fn install_avnc(
+    adb: &Adb,
+    password: &str,
+    progress: &mut (dyn FnMut(String) + Send),
+) -> Result<String> {
+    // AVNC 的 VNC 认证只用密码，用户名可以留空
+    let hint = format!(
+        "请在 AVNC 中新建连接：\n地址 127.0.0.1\n端口 5901\n用户名：可留空（填 droid 也可以）\n密码：{}",
+        password
+    );
+
+    if avnc_installed(adb).await {
+        let launched = launch_avnc(adb).await;
+        return Ok(if launched {
+            format!("AVNC 已安装，已在手机上打开。\n{}", hint)
+        } else {
+            format!("AVNC 已安装，请在手机桌面打开它。\n{}", hint)
+        });
+    }
+
+    async fn manual(adb: &Adb, reason: String, hint: &str) -> Result<String> {
+        let _ = adb.start_view(AVNC_FDROID_URL).await;
+        Ok(format!(
+            "{}。已打开 F-Droid 下载页，可在手机上手动安装。\n{}",
+            reason, hint
+        ))
+    }
+
+    let apk = tool_data_dir().join("avnc.apk");
+
+    // 1) 内置安装包：不依赖网络，国内也能装
+    if write_bundled_apk(&apk).is_ok() {
+        progress(format!("正在安装内置的 AVNC {} …", BUNDLED_AVNC_TAG));
+        if install_apk_file(adb, &apk).await.is_ok() {
+            let launched = launch_avnc(adb).await;
+            progress("AVNC 安装完成。".to_string());
+            return Ok(format!(
+                "AVNC {} 已安装到手机{}。\n{}",
+                BUNDLED_AVNC_TAG,
+                if launched { "并已打开" } else { "" },
+                hint
+            ));
+        }
+        progress("内置安装包安装失败，尝试下载最新版…".to_string());
+    }
+
+    let curl = match find_curl() {
+        Some(c) => c,
+        None => {
+            return manual(adb, "系统里没有 curl，无法自动下载 AVNC 安装包".to_string(), &hint)
+                .await;
+        }
+    };
+
+    progress("正在查询 AVNC 最新版本…".to_string());
+    let json = match curl_get(&curl, AVNC_RELEASE_API).await {
+        Ok(j) => j,
+        Err(e) => {
+            return manual(adb, format!("查询 AVNC 最新版本失败：{}", e), &hint).await;
+        }
+    };
+    let (tag, url) = match find_avnc_apk(&json) {
+        Some(v) => v,
+        None => return manual(adb, "GitHub Releases 中未找到 APK".to_string(), &hint).await,
+    };
+
+    progress(format!("正在下载 AVNC {} …", tag));
+    let size = match download_with_progress(&curl, &url, &apk, "AVNC", progress).await {
+        Ok(n) => n,
+        Err(e) => return manual(adb, format!("下载 AVNC 失败：{}", e), &hint).await,
+    };
+    if size < 1_000_000 {
+        return manual(
+            adb,
+            format!("下载的 AVNC 安装包不完整（{} 字节）", size),
+            &hint,
+        )
+        .await;
+    }
+
+    progress("正在把 AVNC 安装到手机…".to_string());
+    if let Err(e) = install_apk_file(adb, &apk).await {
+        return manual(adb, format!("自动安装失败：{}", e), &hint).await;
     }
 
     let launched = launch_avnc(adb).await;
     progress("AVNC 安装完成。".to_string());
     Ok(format!(
-        "AVNC {} 已安装到手机{}。\n地址 127.0.0.1，端口 5901。",
+        "AVNC {} 已安装到手机{}。\n{}",
         tag,
-        if launched { "并已打开" } else { "" }
+        if launched { "并已打开" } else { "" },
+        hint
     ))
 }
 

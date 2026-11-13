@@ -309,13 +309,14 @@ pub async fn setup_vnc(
         .map_err(|e| e.to_string())
 }
 
-/// 在手机上安装并启动 AVNC 客户端（自动下载 GitHub Releases 中的最新 APK）。
+/// 在手机上安装并启动 AVNC 客户端（优先用程序内置的 APK）。
 #[tauri::command]
 pub async fn install_avnc(
     app: AppHandle,
     state: State<'_, AppState>,
     serial: String,
     adb_path: Option<String>,
+    password: Option<String>,
 ) -> Result<String, String> {
     use tauri::Emitter;
     let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
@@ -323,7 +324,8 @@ pub async fn install_avnc(
     let mut progress = move |msg: String| {
         let _ = handle.emit("vnc-progress", msg);
     };
-    vnc::install_avnc(&adb, &mut progress)
+    let password = password.unwrap_or_else(|| "linux".to_string());
+    vnc::install_avnc(&adb, &password, &mut progress)
         .await
         .map_err(|e| e.to_string())
 }

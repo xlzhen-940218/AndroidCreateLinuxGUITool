@@ -51,7 +51,7 @@ src-tauri\target\release\android-create-linux-gui-tool.exe
 - 默认 VNC 密码 `linux`，显示号 `:1`（端口 5901），分辨率 `1920x1080`，SSH 端口 `10022`。
 - 「放行端口并一键打开 TigerVNC」：自动完成 Terminal 端口放行、`adb forward tcp:5901`、启动本机 TigerVNC 并自动填入地址与密码。
 - 本机没有 TigerVNC 时，会自动下载官方免安装版到 `%LOCALAPPDATA%\AndroidCreateLinuxGUITool\vncviewer.exe`。
-- 「安装 AVNC（手机端）」：自动下载 AVNC（`com.gaurav.avnc`）APK 并安装到手机，之后在手机上连接 `127.0.0.1:5901` 即可。
+- 「安装 AVNC（手机端）」：优先使用**程序内置的 AVNC 3.3.1 安装包**（不依赖网络，国内可用）安装到手机；内置包安装失败时才回退到 GitHub 下载最新版。连接参数为地址 `127.0.0.1`、端口 `5901`、用户名可留空（填 `droid` 也可）、密码为第 5 步设置的 VNC 密码（默认 `linux`）。
 
 ## 从源码构建
 

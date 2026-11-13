@@ -643,7 +643,7 @@ async function setupVnc() {
     }
     showDialog({
       title: "远程桌面已就绪",
-      message: `${r.message}\n\n在电脑端 TigerVNC 中连接：${r.connectHint}\n在手机端 AVNC 中连接：127.0.0.1:5901`,
+      message: `${r.message}\n\n在电脑端 TigerVNC 中连接：${r.connectHint}（密码：${options.vncPassword}）\n在手机端 AVNC 中连接：127.0.0.1:5901（用户名可留空，密码：${options.vncPassword}）`,
       detail: r.viewerDownloaded
         ? "本机原本没有 TigerVNC Viewer，工具已自动下载官方免安装版并直接使用。"
         : "",
@@ -670,7 +670,11 @@ async function installAvnc() {
   busy.value = true;
   vncProgress.value = "";
   try {
-    const msg = await api.installAvnc(serial.value, adbPathInput.value.trim() || undefined);
+    const msg = await api.installAvnc(
+      serial.value,
+      adbPathInput.value.trim() || undefined,
+      options.vncPassword,
+    );
     showDialog({
       title: "AVNC 客户端",
       message: msg,
@@ -1067,7 +1071,8 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             <strong>手机端连接（AVNC）</strong>
             <ul>
               <li>地址：<code>127.0.0.1</code>　端口：<code>5901</code></li>
-              <li>工具会自动下载并安装 AVNC 客户端，安装完成后在手机上打开即可连接。</li>
+              <li>用户名：可留空（填 <code>droid</code> 也可以）　密码：<code>{{ options.vncPassword }}</code></li>
+              <li>工具会自动安装 AVNC 客户端（已内置安装包，离线可用），安装完成后按上面的账号密码连接即可。</li>
             </ul>
           </div>
           <div class="actions">

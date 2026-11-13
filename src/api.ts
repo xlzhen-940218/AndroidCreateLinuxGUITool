@@ -44,7 +44,8 @@ export const api = {
     invoke<PortResult>("enable_port", { serial, port, adbPath }),
   setupVnc: (serial: string, port: number, adbPath?: string, password?: string) =>
     invoke<VncSetup>("setup_vnc", { serial, port, adbPath, password }),
-  installAvnc: (serial: string, adbPath?: string) => invoke<string>("install_avnc", { serial, adbPath }),
+  installAvnc: (serial: string, adbPath?: string, password?: string) =>
+    invoke<string>("install_avnc", { serial, adbPath, password }),
   captureScreen: (serial: string, adbPath?: string) =>
     invoke<string>("capture_screen", { serial, adbPath }),
   openExternal: (url: string) => invoke<void>("open_external", { url }),

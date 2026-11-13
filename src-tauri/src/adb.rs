@@ -56,6 +56,42 @@ pub fn hide_console_std(cmd: &mut std::process::Command) {
     }
 }
 
+/// 随程序内置的 platform-tools（离线可用，无需用户自行安装 Android SDK）。
+///
+/// adb.exe 运行时依赖同目录下的两个 DLL，所以三个文件要一起解压。
+const BUNDLED_ADB: &[u8] = include_bytes!("../resources/adb.exe");
+const BUNDLED_ADB_API: &[u8] = include_bytes!("../resources/AdbWinApi.dll");
+const BUNDLED_ADB_USB_API: &[u8] = include_bytes!("../resources/AdbWinUsbApi.dll");
+
+/// 把内置的 adb 解压到工具数据目录，返回 adb 可执行文件的路径。
+///
+/// 已经解压过（且大小一致）时直接复用，不做任何写入。
+pub fn bundled_adb() -> Option<PathBuf> {
+    if !cfg!(windows) {
+        return None;
+    }
+    let dir = crate::vnc::tool_data_dir().join("platform-tools");
+    let exe = dir.join("adb.exe");
+    let api = dir.join("AdbWinApi.dll");
+    let usb = dir.join("AdbWinUsbApi.dll");
+
+    let up_to_date = exe.is_file()
+        && api.is_file()
+        && usb.is_file()
+        && std::fs::metadata(&exe)
+            .map(|m| m.len() == BUNDLED_ADB.len() as u64)
+            .unwrap_or(false);
+    if up_to_date {
+        return Some(exe);
+    }
+
+    std::fs::create_dir_all(&dir).ok()?;
+    std::fs::write(&exe, BUNDLED_ADB).ok()?;
+    std::fs::write(&api, BUNDLED_ADB_API).ok()?;
+    std::fs::write(&usb, BUNDLED_ADB_USB_API).ok()?;
+    Some(exe)
+}
+
 /// ADB 调用器，绑定到一个可选的设备序列号。
 #[derive(Debug, Clone)]
 pub struct Adb {
@@ -112,6 +148,11 @@ impl Adb {
             if !p.trim().is_empty() {
                 candidates.push(PathBuf::from(p));
             }
+        }
+
+        // 程序自己内置的 adb（解压到用户数据目录），优先于系统里的任何版本
+        if let Some(p) = bundled_adb() {
+            candidates.push(p);
         }
 
         // PATH 目录扫描
