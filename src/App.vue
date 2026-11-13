@@ -1050,7 +1050,7 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           <h2>远程桌面</h2>
           <p class="lead">
             VNC 服务运行在虚拟机内（5901 端口）。需要先在 Terminal 应用中放行该端口
-            （新版：右上角 ⋮ → Port control；旧版：设置 → Port control），
+            （右上角 ⋮ → Settings → Security，在 Listening ports 中打开 5901 的开关），
             工具会自动完成这一步，然后建立 <code>adb forward</code> 转发并一键打开 TigerVNC。
           </p>
           <div v-if="portResult" class="kv">

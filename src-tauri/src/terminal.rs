@@ -34,8 +34,9 @@ pub async fn resolve_launch_activity(adb: &Adb) -> Result<String> {
     for line in out.lines() {
         let line = line.trim();
         if line.starts_with(crate::detect::TERMINAL_PKG) && line.contains('/') {
-            let short = line.trim_start_matches(crate::detect::TERMINAL_PKG);
-            let short = short.trim_start_matches('.');
+            // `com.android.virtualization.terminal/.new2.ui.MainActivity`
+            // → 保留 `/.new2.ui.MainActivity` 这一段，去掉中间的斜杠即可
+            let short = line[crate::detect::TERMINAL_PKG.len()..].trim_start_matches('/');
             return Ok(format!("{}/{}", crate::detect::TERMINAL_PKG, short));
         }
     }

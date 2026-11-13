@@ -135,7 +135,7 @@ cargo build --release --features custom-protocol
 可点「打开 TigerVNC 官网」手动安装；或运行 `--fetch-viewer` 下载免安装版。
 
 **端口转发失败**
-确认手机与电脑的 adb 连接正常，重新插拔 USB 后再试；Terminal 需要允许 5901 端口出站（「Port control」）。
+确认手机与电脑的 adb 连接正常，重新插拔 USB 后再试；也可在手机上打开 Terminal → 右上角 ⋮ → Settings → Security，在「Listening ports」打开 5901 的开关（列表中没有时点右下角「+」添加）。
 
 ## 免责声明
 

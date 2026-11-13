@@ -61,10 +61,12 @@ impl UiNode {
 
 /// 解析 `[left,top][right,bottom]` 形式的 bounds。
 fn parse_bounds(raw: &str) -> Rect {
+    // 格式是 `[left,top][right,bottom]`：不能按逗号切分（中间那段的
+    // `181][1012` 解析不出来），直接按非数字字符切。
     let nums: Vec<i64> = raw
-        .trim_matches(|c| c == '[' || c == ']')
-        .split(',')
-        .filter_map(|s| s.trim().parse::<i64>().ok())
+        .split(|c: char| !c.is_ascii_digit() && c != '-')
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| s.parse::<i64>().ok())
         .collect();
     if nums.len() >= 4 {
         Rect {
@@ -183,6 +185,13 @@ pub async fn tap_xy(adb: &Adb, x: i64, y: i64) -> Result<()> {
 /// 点击节点中心。
 pub async fn tap_node(adb: &Adb, node: &UiNode) -> Result<()> {
     let (x, y) = node.bounds.center();
+    if node.bounds.x2 <= node.bounds.x1 && node.bounds.y2 <= node.bounds.y1 {
+        // 点 (0,0) 会落到状态栏/通知栏上，宁可直接报错
+        bail!(
+            "控件「{}」没有有效的坐标（bounds 为 0），无法点击。",
+            if node.text.is_empty() { &node.desc } else { &node.text }
+        );
+    }
     tap_xy(adb, x, y).await
 }
 

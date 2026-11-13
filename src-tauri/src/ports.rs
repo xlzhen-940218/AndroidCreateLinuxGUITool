@@ -178,37 +178,68 @@ pub async fn enable_port_via_notification(adb: &Adb, port: u16) -> Result<bool> 
     Ok(false)
 }
 
+/// 读取界面节点，失败或为空时重试几次（界面动画中 dump 容易失败）。
+async fn dump_retry(adb: &Adb, tries: usize) -> Result<Vec<UiNode>> {
+    let mut last = String::new();
+    for _ in 0..tries {
+        match uia::dump(adb).await {
+            Ok(n) if !n.is_empty() => return Ok(n),
+            Ok(_) => last = "节点树为空".to_string(),
+            Err(e) => last = e.to_string(),
+        }
+        tokio::time::sleep(Duration::from_millis(700)).await;
+    }
+    Err(anyhow!("读取界面节点失败：{}", last))
+}
+
 /// 打开新版（new2）Terminal 的「设置 → 安全」页面。
 ///
 /// Android 17 起 Terminal 没有独立的端口控制 Activity，正确路径是：
 /// 主界面右上角「⋮」（More options）→ Settings → Security。
 /// Security 页面里才有 Port control / Listening ports / Saved allowed ports。
 async fn open_security_page(adb: &Adb) -> Result<()> {
+    match open_security_page_once(adb).await {
+        Ok(()) => Ok(()),
+        Err(first) => {
+            // 菜单/页面偶发没弹出来时再走一遍
+            tokio::time::sleep(Duration::from_millis(800)).await;
+            open_security_page_once(adb)
+                .await
+                .map_err(|e| anyhow!("{}；重试仍失败：{}", first, e))
+        }
+    }
+}
+
+async fn open_security_page_once(adb: &Adb) -> Result<()> {
+    // 屏幕熄灭或通知栏展开时，节点树里是别的界面，先恢复成 Terminal 主界面
+    adb.raw(&["shell", "input keyevent", "224"]).await.ok();
+    adb.raw(&["shell", "wm dismiss-keyguard"]).await.ok();
+    adb.raw(&["shell", "cmd statusbar collapse"]).await.ok();
+    tokio::time::sleep(Duration::from_millis(600)).await;
+
     let activity = crate::terminal::resolve_launch_activity(adb).await?;
     adb.start_activity(&activity).await?;
-    tokio::time::sleep(Duration::from_millis(1600)).await;
+    tokio::time::sleep(Duration::from_millis(1800)).await;
 
     // 1) 溢出菜单「⋮」。真正可点击的是包着图标的父节点，
     //    但点在图标中心同样会落到父节点上。
-    let nodes = uia::dump(adb).await?;
-    let more = nodes
-        .iter()
-        .find(|n| {
-            let d = n.desc.to_lowercase();
-            d.contains("more options") || d.contains("更多选项")
-        })
-        .or_else(|| {
-            // 兜底：顶栏右侧的按钮
-            nodes
-                .iter()
-                .find(|n| n.clickable && n.bounds.y2 < 400 && n.bounds.x1 > 700)
-        })
+    //    如果当前停在设置页/子页面，先按返回回到主界面。
+    let mut nodes = dump_retry(adb, 3).await?;
+    for _ in 0..2 {
+        if find_more_options(&nodes).is_some() {
+            break;
+        }
+        let _ = adb.raw(&["shell", "input keyevent", "4"]).await;
+        tokio::time::sleep(Duration::from_millis(900)).await;
+        nodes = dump_retry(adb, 3).await?;
+    }
+    let more = find_more_options(&nodes)
         .ok_or_else(|| anyhow!("未能在 Terminal 主界面找到「更多选项（⋮）」按钮。"))?;
     uia::tap_node(adb, more).await?;
-    tokio::time::sleep(Duration::from_millis(1000)).await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
 
     // 2) 下拉菜单里的 Settings
-    let nodes = uia::dump(adb).await?;
+    let nodes = dump_retry(adb, 3).await?;
     let settings = nodes
         .iter()
         .find(|n| {
@@ -217,10 +248,10 @@ async fn open_security_page(adb: &Adb) -> Result<()> {
         })
         .ok_or_else(|| anyhow!("未能在菜单中找到「Settings / 设置」。"))?;
     uia::tap_node(adb, settings).await?;
-    tokio::time::sleep(Duration::from_millis(1300)).await;
+    tokio::time::sleep(Duration::from_millis(1500)).await;
 
     // 3) 设置页里的 Security
-    let nodes = uia::dump(adb).await?;
+    let nodes = dump_retry(adb, 3).await?;
     let security = nodes
         .iter()
         .find(|n| {
@@ -229,8 +260,39 @@ async fn open_security_page(adb: &Adb) -> Result<()> {
         })
         .ok_or_else(|| anyhow!("未能在设置页中找到「Security / 安全」。"))?;
     uia::tap_node(adb, security).await?;
-    tokio::time::sleep(Duration::from_millis(1500)).await;
+    tokio::time::sleep(Duration::from_millis(1600)).await;
+
+    // 4) 确认真的到了安全页
+    let nodes = dump_retry(adb, 3).await?;
+    let on_security = nodes.iter().any(|n| {
+        let t = n.text.trim();
+        t.eq_ignore_ascii_case("Port control")
+            || t.eq_ignore_ascii_case("Listening ports")
+            || t.eq_ignore_ascii_case("Auto-forward all ports")
+    });
+    if !on_security {
+        bail!("未能进入 Terminal 的「设置 → 安全」页面。");
+    }
     Ok(())
+}
+
+/// 找到顶栏的「更多选项（⋮）」按钮。
+fn find_more_options<'a>(nodes: &'a [UiNode]) -> Option<&'a UiNode> {
+    let visible = |n: &&UiNode| n.bounds.x2 > n.bounds.x1 && n.bounds.y2 > n.bounds.y1;
+    nodes
+        .iter()
+        .filter(visible)
+        .find(|n| {
+            let d = n.desc.to_lowercase();
+            d.contains("more options") || d.contains("更多选项")
+        })
+        .or_else(|| {
+            // 兜底：顶栏右侧的按钮
+            nodes
+                .iter()
+                .filter(visible)
+                .find(|n| n.clickable && n.bounds.y2 < 400 && n.bounds.x1 > 700)
+        })
 }
 
 /// 在安全页里找到某个端口所在行的开关。
@@ -252,16 +314,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
     open_security_page(adb).await?;
     let port_str = port.to_string();
 
-    let nodes = uia::dump(adb).await?;
-    let on_security = nodes.iter().any(|n| {
-        let t = n.text.trim();
-        t.eq_ignore_ascii_case("Port control")
-            || t.eq_ignore_ascii_case("Listening ports")
-            || t.eq_ignore_ascii_case("Auto-forward all ports")
-    });
-    if !on_security {
-        bail!("未能进入 Terminal 的「设置 → 安全」页面。");
-    }
+    let nodes = dump_retry(adb, 3).await?;
 
     // 情况 1：Listening ports 里已经有该端口 → 打开同行开关
     if let Some(sw) = port_row(&nodes, &port_str) {
@@ -276,7 +329,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
         }
         uia::tap_node(adb, sw).await?;
         tokio::time::sleep(Duration::from_millis(1000)).await;
-        let after = uia::dump(adb).await?;
+        let after = dump_retry(adb, 3).await?;
         let enabled = port_row(&after, &port_str)
             .map(|s| s.checked)
             .unwrap_or(true);
@@ -293,7 +346,18 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
         });
     }
 
-    // 情况 2：没有该端口 → 点右下角「+」新增
+    // 情况 2：端口已出现在「Saved allowed ports」里（这一栏没有开关）
+    if nodes.iter().any(|n| n.text.contains(&port_str)) {
+        return Ok(PortResult {
+            port,
+            ok: true,
+            action: "already_saved".to_string(),
+            message: format!("端口 {} 已在 Terminal「设置 → 安全」的允许列表中。", port),
+            active: false,
+        });
+    }
+
+    // 情况 3：没有该端口 → 点右下角「+」新增
     let add_btn = nodes
         .iter()
         .find(|n| n.desc.trim().eq_ignore_ascii_case("add"))
@@ -302,7 +366,7 @@ async fn enable_port_via_security(adb: &Adb, port: u16) -> Result<PortResult> {
     uia::tap_node(adb, add_btn).await?;
     tokio::time::sleep(Duration::from_millis(900)).await;
 
-    let dialog = uia::dump(adb).await?;
+    let dialog = dump_retry(adb, 3).await?;
     let field = dialog
         .iter()
         .find(|n| n.class.contains("EditText") && n.enabled)
