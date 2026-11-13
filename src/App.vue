@@ -20,7 +20,20 @@ import type {
   VncSetup,
 } from "./types";
 
-type StepId = "env" | "device" | "avf" | "devenv" | "image" | "install" | "vnc";
+type StepId =
+  | "env"
+  | "device"
+  | "avf"
+  | "devenv"
+  | "image"
+  | "base"
+  | "desktop"
+  | "apps"
+  | "vncsvc"
+  | "vnc";
+
+/** 「安装桌面环境」拆出的 4 个独立安装阶段。 */
+type StageId = "base" | "desktop" | "apps" | "vncsvc";
 
 type ThemeId = "blue" | "pink" | "dark";
 
@@ -32,7 +45,19 @@ interface DialogSpec {
   buttons: DialogButton[];
 }
 
-const stepIds: StepId[] = ["env", "device", "avf", "devenv", "image", "install", "vnc"];
+const stepIds: StepId[] = [
+  "env",
+  "device",
+  "avf",
+  "devenv",
+  "image",
+  "base",
+  "desktop",
+  "apps",
+  "vncsvc",
+  "vnc",
+];
+const stageIds: StageId[] = ["base", "desktop", "apps", "vncsvc"];
 const themeIds: ThemeId[] = ["blue", "pink", "dark"];
 
 const THEME_KEY = "acl.theme";
@@ -58,10 +83,12 @@ const install = ref<InstallStatus>({
   state: "idle",
   message: "",
   step: "",
+  stage: "",
   guestDir: "",
   phoneDir: "",
   scriptPath: "",
 });
+const activeStage = ref<StageId>("base");
 const logs = ref<string[]>([]);
 const dialog = ref<DialogSpec | null>(null);
 const portResult = ref<PortResult | null>(null);
@@ -78,7 +105,10 @@ const done = reactive<Record<StepId, boolean>>({
   avf: false,
   devenv: false,
   image: false,
-  install: false,
+  base: false,
+  desktop: false,
+  apps: false,
+  vncsvc: false,
   vnc: false,
 });
 const failed = reactive<Record<StepId, boolean>>({
@@ -87,7 +117,10 @@ const failed = reactive<Record<StepId, boolean>>({
   avf: false,
   devenv: false,
   image: false,
-  install: false,
+  base: false,
+  desktop: false,
+  apps: false,
+  vncsvc: false,
   vnc: false,
 });
 
@@ -112,6 +145,12 @@ const installRunning = computed(
   () => install.value.state === "running" || install.value.state === "preparing",
 );
 const currentPreset = computed(() => DESKTOP_PRESETS.find((p) => p.id === options.desktop));
+/** 当前步骤对应的安装阶段（不在 4 个安装步骤内时为 null）。 */
+const stageCurrent = computed<StageId | null>(() => {
+  const id = stepIds[current.value];
+  return stageIds.includes(id as StageId) ? (id as StageId) : null;
+});
+const stageIndex = (id: StageId) => stepIds.indexOf(id);
 
 function applyTitle() {
   void getCurrentWindow()
@@ -158,16 +197,18 @@ async function handleDialogAction(id: string) {
     case "retry-image":
       await installImage();
       break;
-    case "continue-install":
-      done.install = true;
-      failed.install = false;
-      current.value = 4;
+    case "continue-install": {
+      const st = activeStage.value;
+      done[st] = true;
+      failed[st] = false;
+      current.value = Math.min(stageIndex(st) + 1, stepIds.length - 1);
       break;
+    }
     case "goto-install":
-      current.value = 4;
+      current.value = stageIndex("base");
       break;
-    case "goto-vnc":
-      current.value = 6;
+    case "goto-next":
+      current.value = Math.min(stageIndex(activeStage.value) + 1, stepIds.length - 1);
       break;
     case "open-avnc":
       await installAvnc();
@@ -536,12 +577,14 @@ async function detectInstalled(silent = false) {
 
 /** 检测到已装好桌面时，跳过安装直接进入远程桌面。 */
 function skipToVnc() {
-  done.install = true;
-  failed.install = false;
-  current.value = 6;
+  stageIds.forEach((id) => {
+    done[id] = true;
+    failed[id] = false;
+  });
+  current.value = stepIds.indexOf("vnc");
 }
 
-async function startInstall() {
+async function startInstall(stage: StageId = activeStage.value) {
   if (!serial.value) {
     showDialog({
       title: t("inst.noDeviceTitle"),
@@ -552,10 +595,9 @@ async function startInstall() {
     return;
   }
 
-  // 弹窗询问是否中国用户 / 是否切换国内源（重试时沿用上次选择）
-  let useCn = cnChoice.value;
-  if (useCn === null) {
-    useCn = await new Promise<boolean | null>((resolve) => {
+  // 国内镜像 / 语言只在「系统基础」阶段询问一次（重试时沿用上次选择）
+  if (stage === "base" && cnChoice.value === null) {
+    const picked = await new Promise<boolean | null>((resolve) => {
       dialog.value = {
         title: t("inst.cnTitle"),
         message: t("inst.cnMsg"),
@@ -575,22 +617,29 @@ async function startInstall() {
         },
       );
     });
-    if (useCn === null) return;
-    cnChoice.value = useCn;
+    if (picked === null) return;
+    cnChoice.value = picked;
   }
 
+  const useCn = cnChoice.value ?? true;
   options.cnMirror = useCn;
   options.locale = useCn ? "zh_CN.UTF-8" : "en_US.UTF-8";
-  options.installIme = useCn;
+  if (!useCn) options.installIme = false;
 
+  activeStage.value = stage;
   logs.value = [];
   busy.value = true;
   try {
-    await api.runInstall(serial.value, { ...options }, adbPathInput.value.trim() || undefined);
+    await api.runInstall(
+      serial.value,
+      { ...options },
+      stage,
+      adbPathInput.value.trim() || undefined,
+    );
     busy.value = false;
   } catch (e) {
     busy.value = false;
-    failed.install = true;
+    failed[stage] = true;
     showDialog({
       title: t("inst.startFailTitle"),
       message: String(e),
@@ -791,20 +840,25 @@ onMounted(async () => {
     await onInstallStatus((s) => {
       install.value = s;
       busy.value = false;
+      const st = stageIds.includes(s.stage as StageId)
+        ? (s.stage as StageId)
+        : activeStage.value;
       if (s.state === "success") {
-        done.install = true;
-        failed.install = false;
-        // 安装完成直接进入「远程桌面」，弹窗只是提示
-        current.value = 6;
+        activeStage.value = st;
+        done[st] = true;
+        failed[st] = false;
+        // 该阶段完成，自动进入下一个步骤
+        current.value = Math.min(stageIndex(st) + 1, stepIds.length - 1);
         showDialog({
           title: t("inst.doneTitle"),
-          message: t("inst.doneMsg"),
+          message: t(`stage.${st}.done`),
           tone: "success",
-          buttons: [{ id: "goto-vnc", label: t("btn.next"), primary: true }],
+          buttons: [{ id: "goto-next", label: t("btn.next"), primary: true }],
         });
       } else if (s.state === "failed") {
-        done.install = false;
-        failed.install = true;
+        activeStage.value = st;
+        done[st] = false;
+        failed[st] = true;
         showDialog({
           title: t("inst.failTitle"),
           message: t("inst.failMsg"),
@@ -1059,12 +1113,24 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
           </div>
         </section>
 
-        <!-- 步骤 6：安装 -->
-        <section v-if="current === 5" class="card">
-          <h2>{{ t("inst.title") }}</h2>
-          <p class="lead">{{ t("inst.lead") }}</p>
+        <!-- 步骤 6-9：安装阶段（系统基础 / 桌面环境 / 常用软件 / TigerVNC 服务） -->
+        <section v-if="stageCurrent" class="card">
+          <h2>{{ t(`step.${stageCurrent}`) }}</h2>
+          <p class="lead">{{ t(`stage.${stageCurrent}.lead`) }}</p>
 
-          <div class="grid">
+          <div v-if="stageCurrent === 'base'" class="grid">
+            <div class="field">
+              <label>{{ t("inst.desktopParams") }}</label>
+              <div class="row">
+                <div class="sub">
+                  <span>{{ t("inst.sshPort") }}</span>
+                  <input v-model.number="options.sshPort" class="input" type="number" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="stageCurrent === 'desktop'" class="grid">
             <div class="field">
               <label>{{ t("inst.desktop") }}</label>
               <div class="presets">
@@ -1081,7 +1147,22 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
                 </button>
               </div>
             </div>
+          </div>
 
+          <div v-if="stageCurrent === 'apps'" class="grid">
+            <div class="field">
+              <label class="check">
+                <input v-model="options.installApps" type="checkbox" />
+                {{ t("inst.installApps") }}
+              </label>
+              <label class="check">
+                <input v-model="options.installIme" type="checkbox" />
+                {{ t("inst.installIme") }}
+              </label>
+            </div>
+          </div>
+
+          <div v-if="stageCurrent === 'vncsvc'" class="grid">
             <div class="field">
               <label>{{ t("inst.desktopParams") }}</label>
               <div class="row">
@@ -1097,19 +1178,7 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
                     <option>1920x1080</option>
                   </select>
                 </div>
-                <div class="sub">
-                  <span>{{ t("inst.sshPort") }}</span>
-                  <input v-model.number="options.sshPort" class="input" type="number" />
-                </div>
               </div>
-              <label class="check">
-                <input v-model="options.installApps" type="checkbox" />
-                {{ t("inst.installApps") }}
-              </label>
-              <label class="check">
-                <input v-model="options.installIme" type="checkbox" />
-                {{ t("inst.installIme") }}
-              </label>
             </div>
           </div>
 
@@ -1128,7 +1197,7 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             <button class="link" @click="refreshPhase()">{{ t("btn.refresh") }}</button>
           </div>
 
-          <div class="detect">
+          <div v-if="stageCurrent === 'base'" class="detect">
             <div class="detect-head">
               <span>{{ t("inst.detectTitle") }}</span>
               <button
@@ -1161,17 +1230,24 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             </div>
           </div>
 
-          <div v-if="installed?.desktop && !done.install" class="detect-tip">
+          <div
+            v-if="stageCurrent === 'base' && installed?.desktop && !done.desktop"
+            class="detect-tip"
+          >
             {{ t("inst.alreadyInstalled", { name: installed.desktopName }) }}
             <button class="link" @click="skipToVnc()">{{ t("btn.skipToVnc") }}</button>
           </div>
 
           <div class="actions">
-            <button class="btn primary" :disabled="busy || installRunning || !serial" @click="startInstall()">
+            <button
+              class="btn primary"
+              :disabled="busy || installRunning || !serial"
+              @click="startInstall(stageCurrent ?? 'base')"
+            >
               {{
                 installRunning
                   ? t("btn.installing")
-                  : installed?.desktop
+                  : done[stageCurrent ?? "base"]
                     ? t("btn.reinstall")
                     : t("btn.startInstall")
               }}

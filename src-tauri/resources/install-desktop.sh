@@ -52,18 +52,32 @@ trap 'marker "RESULT:FAIL:脚本被中断（终端可能被关闭）"; exit 130'
 
 # ---------------------------- 环境准备 ----------------------------
 TARGET_USER="$(id -un 2>/dev/null || echo droid)"
+# sudo 默认 env_reset 会清空环境变量，脚本里 export 的 DEBIAN_FRONTEND
+# 传不进 apt/dpkg，于是 debconf 又会弹出「Package configuration」对话框
+# （典型是 keyboard-configuration 选键盘布局），整个安装看起来就"死"在
+# 那里、按回车也没反应。这里用 env 显式透传，保证全程非交互。
+SUDO_ENV="env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a APT_LISTCHANGES_FRONTEND=none"
 if [ "$(id -u)" -eq 0 ]; then
     SUDO=""
 elif sudo -n true 2>/dev/null; then
-    SUDO="sudo -n"
+    SUDO="sudo -n $SUDO_ENV"
 elif command -v sudo >/dev/null 2>&1; then
-    SUDO="sudo"
+    SUDO="sudo $SUDO_ENV"
 else
     fail "虚拟机内没有 sudo，无法自动安装。"
 fi
 if [ -n "$SUDO" ] && ! $SUDO true 2>/dev/null; then
     fail "当前账户 ($TARGET_USER) 的 sudo 需要交互输入密码，无法自动安装。请先在终端中执行 sudo -v 设置好免密或缓存凭据后重试。"
 fi
+# 预置 debconf 答案，双保险：即使某个 ROM/发行版的 debconf 仍然冒出来，
+# 也直接采用默认值，不会停下来等人按键。
+printf '%s\n' \
+    'keyboard-configuration keyboard-configuration/layoutcode string us' \
+    'keyboard-configuration keyboard-configuration/modelcode string pc105' \
+    'keyboard-configuration keyboard-configuration/xkb-keymap select us' \
+    'console-setup console-setup/charmap47 select UTF-8' \
+    'console-setup console-setup/codeset47 select Guess optimal character set' \
+    | $SUDO debconf-set-selections 2>/dev/null || true
 # 以普通用户身份启动 VNC（root 启动会生成错误的权限文件）
 if [ "$(id -u)" -eq 0 ] && command -v runuser > /dev/null 2>&1; then
     RUNAS="runuser -u $TARGET_USER --"
@@ -75,10 +89,43 @@ fi
 VNC_CMD="vncserver"
 command -v vncserver > /dev/null 2>&1 || VNC_CMD="tigervncserver"
 
+# ---------------------------- 阶段选择 ----------------------------
+# 安装流程被拆成 4 个独立阶段，由工具分批调用（也便于失败后单独重跑）：
+#   base    —— 系统基础：dpkg 修复、镜像源、软件包更新、中文语言、SSH、共享目录
+#   desktop —— 安装桌面环境
+#   apps    —— 常用软件与中文输入法
+#   vncsvc  —— TigerVNC 服务（安装 / 密码 / 启动）
+#   all     —— 依次执行全部阶段（未传参数时的旧行为）
+STAGE="${1:-all}"
+case "$STAGE" in
+    all|base|desktop|apps|vncsvc) ;;
+    *) fail "未知的安装阶段: $STAGE（可选 base / desktop / apps / vncsvc / all）" ;;
+esac
+stage_on() {
+    [ "$STAGE" = "all" ] || [ "$STAGE" = "$1" ]
+}
+
+# 桌面标识在 desktop / vncsvc 两个阶段都要用，提前解析
+case "$DESKTOP" in
+    kde)       DESKTOP_NAME="KDE Plasma";     SESSION_WANT="plasmax11";               SESSION_KEY="plasma";    TASK_NAME="kde-desktop";              TASK_PACKAGES="kde-plasma-desktop plasma-workspace" ;;
+    gnome)     DESKTOP_NAME="GNOME";           SESSION_WANT="gnome-xorg";               SESSION_KEY="gnome";     TASK_NAME="gnome-desktop";            TASK_PACKAGES="gnome-session gnome-session-xsession gnome-shell" ;;
+    xfce)      DESKTOP_NAME="XFCE";            SESSION_WANT="xfce";                     SESSION_KEY="xfce";      TASK_NAME="xfce-desktop";             TASK_PACKAGES="xfce4 xfce4-terminal" ;;
+    mate)      DESKTOP_NAME="MATE";            SESSION_WANT="mate";                     SESSION_KEY="mate";      TASK_NAME="mate-desktop";             TASK_PACKAGES="mate-desktop-environment mate-session-manager" ;;
+    cinnamon)  DESKTOP_NAME="Cinnamon";        SESSION_WANT="cinnamon";                 SESSION_KEY="cinnamon";  TASK_NAME="cinnamon-desktop";         TASK_PACKAGES="cinnamon cinnamon-session cinnamon-common" ;;
+    lxqt)      DESKTOP_NAME="LXQt";            SESSION_WANT="lxqt";                     SESSION_KEY="lxqt";      TASK_NAME="lxqt-desktop";             TASK_PACKAGES="lxqt lxqt-session" ;;
+    lxde)      DESKTOP_NAME="LXDE";            SESSION_WANT="lxde";                     SESSION_KEY="lxde";      TASK_NAME="lxde-desktop";             TASK_PACKAGES="lxde lxde-session" ;;
+    flashback) DESKTOP_NAME="GNOME Flashback"; SESSION_WANT="gnome-flashback-metacity"; SESSION_KEY="flashback"; TASK_NAME="gnome-flashback-desktop";  TASK_PACKAGES="gnome-flashback gnome-session-xsession" ;;
+    *)         fail "未知的桌面环境类型: $DESKTOP" ;;
+esac
+VNC_PORT=$(( 5900 + ${VNC_DISPLAY#:} ))
+
+# ============================ 阶段：系统基础 ============================
+if stage_on base; then
 step "environment"
 echo "=== Android Linux 桌面环境安装 ==="
 echo "日志文件: $LOG_FILE"
 echo "用户: $TARGET_USER  (sudo='${SUDO:-none}')"
+echo "阶段: $STAGE"
 
 # ---------------------------- 系统识别 ----------------------------
 step "detect_system"
@@ -94,6 +141,33 @@ echo "架构: $(uname -m)   内核: $(uname -r)"
 
 APT_OPTS="-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
 
+# ---------------------- 修复上次中断留下的 dpkg 状态 ----------------------
+# 终端应用闪退 / 安装被取消会把 dpkg 留在"被中断"状态，之后所有 apt 命令
+# 都会直接报：
+#   E: dpkg was interrupted, you must manually run
+#      'sudo dpkg --configure -a' to correct the problem.
+# dpkg --configure -a 在状态正常时是空操作，所以这里无条件跑一遍，
+# 让"取消后重新执行"能自动续上，而不是卡死在这里。
+step "dpkg_repair"
+echo "正在检查上次安装是否留下了未配置的软件包..."
+# 若上一次的 apt/dpkg 进程还活着，先等它退出，避免抢锁
+for _ in $(seq 1 30); do
+    if $SUDO pgrep -x dpkg > /dev/null 2>&1 || $SUDO pgrep -x apt-get > /dev/null 2>&1; then
+        sleep 1
+    else
+        break
+    fi
+done
+# 闪退后经常残留锁文件，清掉（此时已确认没有 dpkg/apt-get 在运行）
+$SUDO rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock \
+    /var/cache/apt/archives/lock /var/lib/apt/lists/lock 2>/dev/null || true
+if ! $SUDO dpkg --configure -a; then
+    echo "[提示] dpkg --configure -a 未完全成功，尝试 apt-get -f install 修复..."
+    $SUDO apt-get $APT_OPTS -f install -y || true
+    $SUDO dpkg --configure -a || true
+fi
+echo "dpkg 状态检查完成。"
+
 # ---------------------------- 切换国内源 ----------------------------
 if [ "$CN_MIRROR" = "1" ]; then
     step "mirror"
@@ -101,7 +175,9 @@ if [ "$CN_MIRROR" = "1" ]; then
     DEB_CN="https://mirrors.tuna.tsinghua.edu.cn/debian"
     SEC_CN="https://mirrors.tuna.tsinghua.edu.cn/debian-security"
     $SUDO cp -n /etc/apt/sources.list /etc/apt/sources.list.bak.acl 2>/dev/null || true
-    $SUDO cp -n /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list.d/debian.sources.bak.acl 2>/dev/null || true
+    # 备份不要放在 sources.list.d/ 里：apt 会对非 .list/.sources 后缀的文件报
+    # "Ignoring file ... as it has an invalid filename extension"
+    $SUDO cp -n /etc/apt/sources.list.d/debian.sources /etc/apt/debian.sources.bak.acl 2>/dev/null || true
 
     # deb822 格式（Debian 12/13 默认）
     $SUDO tee /etc/apt/sources.list.d/debian.sources > /dev/null <<EOF
@@ -182,23 +258,14 @@ else
     $SUDO systemctl enable sshd 2>/dev/null || true
     $SUDO systemctl restart sshd || $SUDO service sshd restart || echo "[警告] SSH 服务重启失败。"
 fi
+fi  # 阶段 base 结束
 
-# ---------------------------- 桌面环境 ----------------------------
+# ============================ 阶段：桌面环境 ============================
+if stage_on desktop; then
 step "desktop"
 # 注意：Debian 12/13 的仓库里**没有** `xfce-desktop` 这类 tasksel 任务元包
 # （`apt-cache show xfce-desktop` 查不到），所以必须直接安装真实的软件包；
 # tasksel 只在任务包确实存在时才用。
-case "$DESKTOP" in
-    kde)       DESKTOP_NAME="KDE Plasma";     SESSION_WANT="plasmax11";               SESSION_KEY="plasma";    TASK_NAME="kde-desktop";              TASK_PACKAGES="kde-plasma-desktop plasma-workspace" ;;
-    gnome)     DESKTOP_NAME="GNOME";           SESSION_WANT="gnome-xorg";               SESSION_KEY="gnome";     TASK_NAME="gnome-desktop";            TASK_PACKAGES="gnome-session gnome-session-xsession gnome-shell" ;;
-    xfce)      DESKTOP_NAME="XFCE";            SESSION_WANT="xfce";                     SESSION_KEY="xfce";      TASK_NAME="xfce-desktop";             TASK_PACKAGES="xfce4 xfce4-terminal" ;;
-    mate)      DESKTOP_NAME="MATE";            SESSION_WANT="mate";                     SESSION_KEY="mate";      TASK_NAME="mate-desktop";             TASK_PACKAGES="mate-desktop-environment mate-session-manager" ;;
-    cinnamon)  DESKTOP_NAME="Cinnamon";        SESSION_WANT="cinnamon";                 SESSION_KEY="cinnamon";  TASK_NAME="cinnamon-desktop";         TASK_PACKAGES="cinnamon cinnamon-session cinnamon-common" ;;
-    lxqt)      DESKTOP_NAME="LXQt";            SESSION_WANT="lxqt";                     SESSION_KEY="lxqt";      TASK_NAME="lxqt-desktop";             TASK_PACKAGES="lxqt lxqt-session" ;;
-    lxde)      DESKTOP_NAME="LXDE";            SESSION_WANT="lxde";                     SESSION_KEY="lxde";      TASK_NAME="lxde-desktop";             TASK_PACKAGES="lxde lxde-session" ;;
-    flashback) DESKTOP_NAME="GNOME Flashback"; SESSION_WANT="gnome-flashback-metacity"; SESSION_KEY="flashback"; TASK_NAME="gnome-flashback-desktop"; TASK_PACKAGES="gnome-flashback gnome-session-xsession" ;;
-    *)         fail "未知的桌面环境类型: $DESKTOP" ;;
-esac
 echo "正在安装 $DESKTOP_NAME 桌面环境，这可能需要较长时间..."
 # 任务包在仓库里存在时才走 tasksel，否则直接装真实软件包
 if apt-cache show "$TASK_NAME" > /dev/null 2>&1; then
@@ -209,7 +276,10 @@ if apt-cache show "$TASK_NAME" > /dev/null 2>&1; then
 fi
 $SUDO apt-get $APT_OPTS install -y $TASK_PACKAGES || fail "安装 $DESKTOP_NAME 桌面环境失败（软件包: $TASK_PACKAGES）。"
 
-# ---------------------------- VNC 配置 ----------------------------
+fi  # 阶段 desktop 结束
+
+# ============================ 阶段：TigerVNC 服务 ============================
+if stage_on vncsvc; then
 step "vnc"
 echo "正在配置 TigerVNC 远程桌面..."
 $SUDO apt-get $APT_OPTS install -y tigervnc-standalone-server tigervnc-common dbus-x11 x11-xserver-utils || fail "安装 TigerVNC 失败。"
@@ -276,7 +346,6 @@ if [ -n "$VNC_PASSWORD" ]; then
 fi
 
 mkdir -p "$HOME/.vnc" "$HOME/.config/tigervnc"
-VNC_PORT=$(( 5900 + ${VNC_DISPLAY#:} ))
 cat > "$HOME/.vnc/config" <<EOF
 session=$ACTUAL_SESSION
 geometry=$VNC_GEOMETRY
@@ -401,7 +470,10 @@ else
     echo "[警告] VNC 服务启动失败，可稍后手动执行: vncserver $VNC_DISPLAY"
     echo "最近日志: $(tail -3 "$HOME/.vnc/"*.log 2>/dev/null | tr '\n' ' ')"
 fi
+fi  # 阶段 vncsvc 结束
 
+# ====================== 阶段：系统基础（共享目录） ======================
+if stage_on base; then
 # ---------------------------- Android 共享目录 ----------------------------
 step "shared"
 echo "正在配置 Android 共享目录挂载..."
@@ -422,6 +494,10 @@ touch "$HOME/.config/gtk-3.0/bookmarks" 2>/dev/null
 grep -q "file:///mnt/shared" "$HOME/.config/gtk-3.0/bookmarks" 2>/dev/null || \
     echo "file:///mnt/shared 📱Android_共享磁盘" >> "$HOME/.config/gtk-3.0/bookmarks"
 
+fi  # 阶段 base（共享目录）结束
+
+# ============================ 阶段：可选组件 ============================
+if stage_on apps; then
 # ---------------------------- 可选组件 ----------------------------
 step "optional"
 if [ "$INSTALL_IME" = "1" ]; then
@@ -438,15 +514,29 @@ if [ "$INSTALL_APPS" = "1" ]; then
     fi
 fi
 
+fi  # 阶段 apps 结束
+
 # ---------------------------- 完成 ----------------------------
 step "done"
 echo ""
 echo "============================================================"
-echo " 全部配置已完成！"
+case "$STAGE" in
+    base)    echo " 系统基础环境与中文支持配置完成！" ;;
+    desktop) echo " $DESKTOP_NAME 桌面环境安装完成！" ;;
+    apps)    echo " 常用软件与中文输入法安装完成！" ;;
+    vncsvc)  echo " TigerVNC 服务已配置并启动！" ;;
+    *)       echo " 全部配置已完成！" ;;
+esac
 echo "============================================================"
-echo "桌面环境: $DESKTOP_NAME"
-echo "VNC 地址: 127.0.0.1:${VNC_PORT}  (需在 Terminal 应用的「Port control」中放行 ${VNC_PORT})"
-echo "SSH 端口: $SSH_PORT"
+if [ "$STAGE" = "desktop" ] || [ "$STAGE" = "all" ]; then
+    echo "桌面环境: $DESKTOP_NAME"
+fi
+if [ "$STAGE" = "vncsvc" ] || [ "$STAGE" = "all" ]; then
+    echo "VNC 地址: 127.0.0.1:${VNC_PORT}  (需在 Terminal 应用的「Port control」中放行 ${VNC_PORT})"
+fi
+if [ "$STAGE" = "base" ] || [ "$STAGE" = "all" ]; then
+    echo "SSH 端口: $SSH_PORT"
+fi
 marker "RESULT:OK"
 sleep 0.4
 exit 0

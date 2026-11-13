@@ -92,6 +92,8 @@ pub struct InstallStatus {
     pub message: String,
     /// 当前阶段标识，如 apt_update / desktop / vnc。
     pub step: String,
+    /// 本次执行的安装阶段：base / desktop / apps / vncsvc / all。
+    pub stage: String,
     pub guest_dir: String,
     pub phone_dir: String,
     pub script_path: String,
@@ -103,6 +105,7 @@ impl Default for InstallStatus {
             state: "idle".to_string(),
             message: String::new(),
             step: String::new(),
+            stage: String::new(),
             guest_dir: String::new(),
             phone_dir: String::new(),
             script_path: String::new(),
@@ -131,6 +134,7 @@ pub type SharedState = Arc<tokio::sync::Mutex<InstallState>>;
 const STEP_LABELS: &[(&str, &str)] = &[
     ("environment", "检查虚拟机环境"),
     ("detect_system", "识别 Debian 版本"),
+    ("dpkg_repair", "修复软件包状态"),
     ("mirror", "切换国内软件源"),
     ("apt_update", "更新软件包"),
     ("locale", "配置语言与字体"),
@@ -550,6 +554,7 @@ pub async fn monitor(
 pub async fn prepare_core(
     adb: &Adb,
     opts: &InstallOptions,
+    stage: &str,
     workdir: &std::path::Path,
     emit: &mut (dyn FnMut(InstallStatus) + Send),
 ) -> Result<SharedMapping> {
@@ -558,6 +563,7 @@ pub async fn prepare_core(
             state: state.to_string(),
             message: message.to_string(),
             step: step.to_string(),
+            stage: stage.to_string(),
             guest_dir: String::new(),
             phone_dir: String::new(),
             script_path: String::new(),
@@ -609,6 +615,7 @@ pub async fn prepare_core(
         state: "preparing".to_string(),
         message: format!("脚本已推送至 {}", remote),
         step: String::new(),
+        stage: stage.to_string(),
         guest_dir: mapping.guest_dir.clone(),
         phone_dir: mapping.phone_dir.clone(),
         script_path: format!("{}/{}", mapping.guest_dir.trim_end_matches('/'), SCRIPT_NAME),
@@ -622,6 +629,7 @@ pub async fn prepare(
     app: &AppHandle,
     adb: &Adb,
     opts: &InstallOptions,
+    stage: &str,
     workdir: &std::path::Path,
     state: &SharedState,
 ) -> Result<SharedMapping> {
@@ -633,33 +641,33 @@ pub async fn prepare(
         }
         let _ = app.emit("install-status", &s);
     };
-    prepare_core(adb, opts, workdir, &mut emit).await
+    prepare_core(adb, opts, stage, workdir, &mut emit).await
 }
 
 /// 命令行版：完整跑一遍安装（准备 → 执行 → 等待结果），实时打印日志。
 pub async fn run_headless(
     adb: &Adb,
     opts: &InstallOptions,
+    stage: &str,
     workdir: &std::path::Path,
 ) -> Result<InstallStatus> {
-    let mut last = InstallStatus::default();
+    let mut last = InstallStatus {
+        stage: stage.to_string(),
+        ..Default::default()
+    };
     {
         let mut emit = |s: InstallStatus| {
             if !s.message.is_empty() {
                 println!("[{}] {}", s.state, s.message);
             }
         };
-        let mapping = prepare_core(adb, opts, workdir, &mut emit).await?;
+        let mapping = prepare_core(adb, opts, stage, workdir, &mut emit).await?;
 
         last.state = "running".to_string();
         last.message = "正在虚拟机终端中执行安装脚本...".to_string();
         println!("[running] {}", last.message);
 
-        let cmd = format!(
-            "bash {}/{}",
-            mapping.guest_dir.trim_end_matches('/'),
-            SCRIPT_NAME
-        );
+        let cmd = stage_command(&mapping, stage);
         let phone_log = format!(
             "{}/{}",
             mapping.phone_dir.trim_end_matches('/'),
@@ -748,6 +756,20 @@ pub async fn run_headless(
     }
 }
 
+/// 生成虚拟机内执行指定阶段的命令（all 时不传参数，保持旧行为）。
+fn stage_command(mapping: &SharedMapping, stage: &str) -> String {
+    let base = format!(
+        "bash {}/{}",
+        mapping.guest_dir.trim_end_matches('/'),
+        SCRIPT_NAME
+    );
+    if stage.is_empty() || stage == "all" {
+        base
+    } else {
+        format!("{} {}", base, stage)
+    }
+}
+
 /// 启动安装：进入终端执行脚本，并开启日志监控。
 pub async fn start(
     app: &AppHandle,
@@ -755,22 +777,20 @@ pub async fn start(
     _opts: &InstallOptions,
     mapping: &SharedMapping,
     state: SharedState,
+    stage: &str,
 ) -> Result<()> {
     {
         let mut s = state.lock().await;
         s.cancel.store(false, Ordering::SeqCst);
         s.status.state = "running".to_string();
         s.status.step = String::new();
+        s.status.stage = stage.to_string();
         s.status.message = "正在虚拟机终端中执行安装脚本...".to_string();
         let payload = s.status.clone();
         let _ = app.emit("install-status", &payload);
     }
 
-    let cmd = format!(
-        "bash {}/{}",
-        mapping.guest_dir.trim_end_matches('/'),
-        SCRIPT_NAME
-    );
+    let cmd = stage_command(mapping, stage);
     let phone_log = format!(
         "{}/{}",
         mapping.phone_dir.trim_end_matches('/'),

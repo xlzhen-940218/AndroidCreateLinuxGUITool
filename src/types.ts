@@ -94,6 +94,8 @@ export interface InstallStatus {
   state: InstallState;
   message: string;
   step: string;
+  /** 本次执行的安装阶段：base / desktop / apps / vncsvc / all */
+  stage: string;
   guestDir: string;
   phoneDir: string;
   scriptPath: string;

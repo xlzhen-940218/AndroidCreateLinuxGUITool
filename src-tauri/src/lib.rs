@@ -302,7 +302,7 @@ pub fn selftest() -> i32 {
 
 /// 命令行安装模式：完整跑一遍安装流程并实时打印日志。
 ///
-/// 用法：`AndroidCreateLinuxGUITool.exe --install [--desktop=xfce] [--official-source]`
+/// 用法：`AndroidCreateLinuxGUITool.exe --install [--desktop=xfce] [--stage=base|desktop|apps|vncsvc] [--official-source]`
 pub fn install_cli(args: &[String]) -> i32 {
     let rt = match tokio::runtime::Runtime::new() {
         Ok(r) => r,
@@ -332,9 +332,13 @@ pub fn install_cli(args: &[String]) -> i32 {
         println!("设备: {}", serial);
 
         let mut opts = installer::InstallOptions::default();
+        let mut stage = "all".to_string();
         for a in args {
             if let Some(v) = a.strip_prefix("--desktop=") {
                 opts.desktop = v.to_string();
+            }
+            if let Some(v) = a.strip_prefix("--stage=") {
+                stage = v.to_string();
             }
             if a == "--official-source" {
                 opts.cn_mirror = false;
@@ -351,7 +355,7 @@ pub fn install_cli(args: &[String]) -> i32 {
         );
 
         let workdir = std::env::temp_dir().join("android-create-linux-gui-tool");
-        match installer::run_headless(&adb, &opts, &workdir).await {
+        match installer::run_headless(&adb, &opts, &stage, &workdir).await {
             Ok(status) => {
                 println!("\n最终状态: {} - {}", status.state, status.message);
                 if status.state == "success" {

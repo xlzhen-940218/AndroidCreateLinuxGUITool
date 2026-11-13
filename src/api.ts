@@ -39,8 +39,8 @@ export const api = {
     invoke<void>("open_terminal", { serial, adbPath }),
   detectInstalled: (serial: string, adbPath?: string) =>
     invoke<InstalledReport>("detect_installed", { serial, adbPath }),
-  runInstall: (serial: string, options: InstallOptions, adbPath?: string) =>
-    invoke<InstallStatus>("run_install", { serial, options, adbPath }),
+  runInstall: (serial: string, options: InstallOptions, stage: string, adbPath?: string) =>
+    invoke<InstallStatus>("run_install", { serial, options, stage, adbPath }),
   installStatus: () => invoke<InstallStatus>("install_status"),
   cancelInstall: () => invoke<void>("cancel_install"),
   enablePort: (serial: string, port: number, adbPath?: string) =>

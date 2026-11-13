@@ -104,20 +104,24 @@ pub async fn device_policy(adb: &Adb) -> (bool, String) {
         .shell("dpm list-owners")
         .await
         .unwrap_or_default();
+    // 「没有任何所有者」的文案各 ROM 不一致：AOSP 是 "No owners."，
+    // MIUI / HyperOS 是 "no owners"，还有的版本带附加说明。
+    // 按大小写敏感匹配会漏掉小写版本，小米平板就被误判成"企业管理设备"。
+    if out.to_lowercase().contains("no owner") {
+        return (false, String::new());
+    }
     let meaningful = out
         .lines()
         .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        // 真正的所有者条目一定带包名或组件名，借此过滤表头和命令报错
+        .filter(|l| l.contains('.') || l.contains("ComponentInfo"))
         .filter(|l| {
-            !l.is_empty()
-                && !l.starts_with("No owners")
-                && !l.contains("No device owner")
-                && !l.contains("No profile owner")
+            let l = l.to_lowercase();
+            !l.starts_with("error") && !l.contains("exception") && !l.contains("not found")
         })
         .collect::<Vec<_>>();
-    let present = !meaningful.is_empty()
-        && !out.trim().starts_with("No owners")
-        && !out.contains("No device owner")
-        && !out.contains("No profile owner");
+    let present = !meaningful.is_empty();
     (present, meaningful.join(" | "))
 }
 

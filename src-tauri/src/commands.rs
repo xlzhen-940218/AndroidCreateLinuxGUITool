@@ -255,7 +255,9 @@ pub async fn detect_installed(
         .map_err(|e| e.to_string())
 }
 
-/// 执行完整安装流程（准备 + 启动 + 后台监控）。
+/// 执行一个安装阶段（准备 + 启动 + 后台监控）。
+///
+/// `stage` 取 base / desktop / apps / vncsvc，缺省时执行全部阶段。
 #[tauri::command]
 pub async fn run_install(
     app: AppHandle,
@@ -263,15 +265,17 @@ pub async fn run_install(
     serial: String,
     adb_path: Option<String>,
     options: InstallOptions,
+    stage: Option<String>,
 ) -> Result<InstallStatus, String> {
     let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
     let workdir = state.workdir();
     let install_state = state.install.clone();
+    let stage = stage.unwrap_or_else(|| "all".to_string());
 
-    let mapping = installer::prepare(&app, &adb, &options, &workdir, &install_state)
+    let mapping = installer::prepare(&app, &adb, &options, &stage, &workdir, &install_state)
         .await
         .map_err(|e| e.to_string())?;
-    installer::start(&app, &adb, &options, &mapping, install_state.clone())
+    installer::start(&app, &adb, &options, &mapping, install_state.clone(), &stage)
         .await
         .map_err(|e| e.to_string())?;
 
