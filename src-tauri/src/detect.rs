@@ -50,6 +50,17 @@ async fn getprop(adb: &Adb, key: &str) -> String {
         .to_string()
 }
 
+/// 系统的 API 级别（读不到时返回 0）。
+///
+/// 用来区分两套 Terminal 应用：
+/// Android 16（API 36）及以下是旧版界面，Android 17（API 37）起换成了 new2。
+pub async fn sdk_int(adb: &Adb) -> i32 {
+    getprop(adb, "ro.build.version.sdk")
+        .await
+        .parse::<i32>()
+        .unwrap_or(0)
+}
+
 /// 完整检测设备是否支持 Linux 虚拟机。
 pub async fn check_avf(adb: &Adb) -> Result<AvfReport> {
     let serial = adb.serial().unwrap_or_default().to_string();

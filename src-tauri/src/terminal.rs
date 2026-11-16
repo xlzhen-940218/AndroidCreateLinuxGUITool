@@ -143,9 +143,25 @@ pub async fn phase(adb: &Adb) -> Result<TerminalPhase> {
 }
 
 /// 启动 Terminal 应用。
+///
+/// 注意：**已经在前台时不要重新 `am start`**。
+/// 旧版（Android 16）的 Terminal 每次 Activity 重建都会把终端会话拉回
+/// 「正在准备终端」的启动态，此时点终端、注入文字都无效。
+///
+/// 从后台拉回前台时也要带上 `--activity-clear-top --activity-single-top`：
+/// 普通 `am start` 会在任务里**新建**一个 MainActivity 实例，
+/// 同样会触发虚拟机重启，桌面环境和 VNC 全部作废。
 pub async fn open(adb: &Adb) -> Result<()> {
+    let fg = uia::foreground_package(adb).await.unwrap_or_default();
+    if fg.contains("virtualization.terminal") {
+        return Ok(());
+    }
     let activity = resolve_launch_activity(adb).await?;
-    match adb.start_activity(&activity).await {
+    const RESUME_FLAGS: [&str; 2] = ["--activity-clear-top", "--activity-single-top"];
+    match adb
+        .start_activity_with_flags(&activity, &RESUME_FLAGS)
+        .await
+    {
         Ok(()) => Ok(()),
         Err(e) => {
             // 兜底：尝试已知的另一种路径
@@ -153,7 +169,11 @@ pub async fn open(adb: &Adb) -> Result<()> {
                 if alt == activity {
                     continue;
                 }
-                if adb.start_activity(alt).await.is_ok() {
+                if adb
+                    .start_activity_with_flags(&alt, &RESUME_FLAGS)
+                    .await
+                    .is_ok()
+                {
                     return Ok(());
                 }
             }
@@ -288,9 +308,13 @@ pub async fn detect_image(adb: &Adb) -> Result<ImageStatus> {
 /// 这是「Linux 开发环境」与「安装桌面环境」之间的独立工作流：
 /// 系统镜像（约 600 MB）下载 + 虚拟机首次启动可能要很久，单独作为一步
 /// 可以让用户看清进度，也避免混在桌面安装的进度里。
+///
+/// `disk_size_gb` 大于 0 时，会在镜像就绪后顺手把虚拟机磁盘调整到该容量
+/// （Android 16 及以下需要；Android 17 起由系统统一管理，会自动跳过）。
 pub async fn install_image(
     adb: &Adb,
     emit: &mut (dyn FnMut(ImageStatus) + Send),
+    disk_size_gb: u32,
 ) -> Result<ImageStatus> {
     let status = |phase: TerminalPhase, message: &str| ImageStatus {
         phase,
@@ -353,6 +377,21 @@ pub async fn install_image(
             last_message = message.to_string();
         }
         if current_phase == TerminalPhase::Ready {
+            // 磁盘容量：Android 16 及以下的镜像默认只有几 GB，装桌面环境会不够用，
+            // 这里在装桌面之前先把磁盘扩到目标大小；Android 17 起会自动跳过。
+            if disk_size_gb > 0 {
+                emit(status(
+                    TerminalPhase::Ready,
+                    &format!("正在检查虚拟机磁盘容量（目标 {} GB）…", disk_size_gb),
+                ));
+                match crate::disk::ensure_disk_size(adb, disk_size_gb).await {
+                    Ok(r) => emit(status(TerminalPhase::Ready, &r.message)),
+                    Err(e) => emit(status(
+                        TerminalPhase::Ready,
+                        &format!("调整磁盘大小时出错：{}（不影响后续安装）", e),
+                    )),
+                }
+            }
             return Ok(status(current_phase, "Linux 终端已就绪，可以继续安装桌面环境。"));
         }
         if current_phase == TerminalPhase::NeedsInstall && !needs_image {
@@ -571,6 +610,15 @@ pub async fn run_command(adb: &Adb, command: &str) -> Result<()> {
     if !fg.contains("virtualization.terminal") {
         open(adb).await?;
         tokio::time::sleep(Duration::from_millis(1800)).await;
+    }
+    // 必须等终端真正就绪。虚拟机启动中（界面显示「正在准备终端」）时，
+    // 节点树里还没有 webview，点终端不会弹出软键盘，注入的文字会被丢弃。
+    let phase = wait_ready(adb, 240).await.unwrap_or(TerminalPhase::Unknown);
+    if phase != TerminalPhase::Ready {
+        bail!(
+            "终端尚未就绪（当前状态：{}），无法注入命令。\n请确认手机上的 Terminal 应用已正常打开。",
+            phase.label()
+        );
     }
     focus(adb).await?;
     // 先清行，避免上一次输入残留（Ctrl+C，KEYCODE_CTRL_LEFT + KEYCODE_C）

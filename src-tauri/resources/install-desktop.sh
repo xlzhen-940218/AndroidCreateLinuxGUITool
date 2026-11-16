@@ -582,9 +582,14 @@ vnc_start_raw() {
     vnc_clear_x_locks
     # setsid + nohup：脱离当前终端会话。否则安装脚本一结束，Xtigervnc
     # 可能随 Terminal 会话被一起清理，表现为"刚启动就掉线"。
+    #
+    # 注意：**不能**加 -xstartup 选项。Debian 12 自带的 TigerVNC 1.12
+    # 的 Xtigervnc 没有这个选项，会直接报
+    # "Fatal server error: Unrecognized option: -xstartup" 而起不来。
+    # Xtigervnc 默认就会执行 ~/.vnc/xstartup，write_xstartup 已经写好了。
     $RUNAS setsid nohup Xtigervnc "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -depth 24 \
         -rfbport "$VNC_PORT" -rfbauth "$auth" -SecurityTypes VncAuth \
-        -localhost=0 -AlwaysShared -xstartup "$HOME/.vnc/xstartup" \
+        -localhost=0 -AlwaysShared \
         > "$VNC_START_LOG" 2>&1 < /dev/null &
     # 等端口就绪后再观察 2 秒，确认进程没有启动后立刻退出
     if vnc_wait_port && sleep 2 && vnc_port_listening; then

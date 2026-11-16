@@ -345,6 +345,26 @@ impl Adb {
         Ok(())
     }
 
+    /// 带额外 `am start` 标志启动 Activity。
+    ///
+    /// 关键场景：把已经在后台运行的 Activity 拉回前台时，必须带上
+    /// `--activity-clear-top --activity-single-top`。
+    /// 旧版 Terminal 的 MainActivity 每次被"新建"都会重新创建虚拟机
+    /// （界面回到「正在准备终端」，虚拟机里的桌面与 VNC 全部作废），
+    /// 而这两个标志能让系统把意图投递给已有实例，而不是新建一个。
+    pub async fn start_activity_with_flags(&self, component: &str, flags: &[&str]) -> Result<()> {
+        let mut args: Vec<&str> = vec!["shell", "am", "start"];
+        args.extend_from_slice(flags);
+        args.push("-n");
+        args.push(component);
+        let out = self.raw(&args).await?;
+        let text = out.combined();
+        if text.contains("Error") || text.contains("Exception") || text.contains("Permission Denial") {
+            bail!("启动 Activity 失败: {}", text.trim());
+        }
+        Ok(())
+    }
+
     /// 启动一个 VIEW intent（用于打开 Play 商店页面等）。
     pub async fn start_view(&self, url: &str) -> Result<()> {
         let cmd = format!("am start -a android.intent.action.VIEW -d '{}'", url);

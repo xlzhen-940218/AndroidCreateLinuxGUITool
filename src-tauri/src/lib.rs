@@ -7,8 +7,10 @@ mod adb;
 mod commands;
 mod detect;
 mod devopts;
+mod disk;
 mod installer;
 mod ports;
+mod relay;
 mod state;
 mod terminal;
 mod uia;
@@ -401,6 +403,57 @@ pub fn fetch_viewer_cli() -> i32 {
     })
 }
 
+/// 命令行磁盘模式：把虚拟机磁盘调整到指定容量（GB）。
+///
+/// 用法：`AndroidCreateLinuxGUITool.exe --disk=32`
+pub fn disk_cli(args: &[String]) -> i32 {
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[错误] 无法创建异步运行时: {}", e);
+            return 1;
+        }
+    };
+    rt.block_on(async {
+        let exe = match Adb::locate() {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("[错误] {}", e);
+                return 1;
+            }
+        };
+        let adb = Adb::new(exe, None);
+        let devices = adb.devices().await.unwrap_or_default();
+        let serial = match devices.iter().find(|d| d.state == "device") {
+            Some(d) => d.serial.clone(),
+            None => {
+                eprintln!("[错误] 没有可用设备");
+                return 2;
+            }
+        };
+        let adb = adb.with_serial(serial.clone());
+        let gb: u32 = args
+            .iter()
+            .find_map(|a| a.strip_prefix("--disk="))
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(32);
+        println!("设备: {}  目标磁盘: {} GB", serial, gb);
+
+        match disk::ensure_disk_size(&adb, gb).await {
+            Ok(r) => {
+                println!("action={} applied={}", r.action, r.applied);
+                println!("调整前: {:.1} GB  调整后: {:.1} GB", r.before_gb, r.after_gb);
+                println!("{}", r.message);
+                0
+            }
+            Err(e) => {
+                eprintln!("[错误] {}", e);
+                1
+            }
+        }
+    })
+}
+
 /// 命令行调试模式：在虚拟机终端里执行一条命令，并把输出取回来。
 ///
 /// 用法：`AndroidCreateLinuxGUITool.exe --exec="ls -la /mnt/shared"`
@@ -447,64 +500,24 @@ pub fn exec_cli(args: &[String]) -> i32 {
         let adb = adb.with_serial(serial.clone());
         println!("设备: {}", serial);
 
+        // 确保终端应用在前台即可；不要无条件重启 Activity
+        // （旧版 Terminal 每次 Activity 重建都会把会话拉回「正在准备终端」）。
         if let Err(e) = terminal::open(&adb).await {
             eprintln!("[错误] 启动 Terminal 失败: {}", e);
             return 3;
         }
         let _ = terminal::dismiss_permission_dialogs(&adb).await;
 
-        let mapping = match installer::probe_shared(&adb).await {
-            Ok(m) => m,
-            Err(e) => {
-                eprintln!("[错误] 探测共享目录失败: {}", e);
-                return 3;
-            }
-        };
-        let guest_dir = mapping.guest_dir.trim_end_matches('/').to_string();
-        let phone_dir = mapping.phone_dir.trim_end_matches('/').to_string();
-        println!("共享目录: 虚拟机 {} <-> 手机 {}", guest_dir, phone_dir);
-
-        let script = format!(
-            "#!/bin/bash\nexec > {g}/acl_exec_out.txt 2>&1\n{c}\necho \"__EXIT__=$?\"\necho \"__DONE__\"\n",
-            g = guest_dir,
-            c = user_cmd
-        );
-        let workdir = std::env::temp_dir().join("android-create-linux-gui-tool");
-        tokio::fs::create_dir_all(&workdir).await.ok();
-        let local = workdir.join("acl_exec.sh");
-        if let Err(e) = tokio::fs::write(&local, script.as_bytes()).await {
-            eprintln!("[错误] 写入本地脚本失败: {}", e);
-            return 4;
-        }
-        let remote = format!("{}/acl_exec.sh", phone_dir);
-        if let Err(e) = adb.push(&local, &remote).await {
-            eprintln!("[错误] 推送脚本失败: {}", e);
-            return 4;
-        }
-        adb.shell(&format!("rm -f '{}/acl_exec_out.txt'", phone_dir))
-            .await
-            .ok();
-
-        let cmd = format!("bash {}/acl_exec.sh", guest_dir);
-        if let Err(e) = terminal::run_command(&adb, &cmd).await {
-            eprintln!("[错误] 执行命令失败: {}", e);
-            return 5;
-        }
-
-        let out_path = format!("{}/acl_exec_out.txt", phone_dir);
-        for _ in 0..180 {
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-            let content = adb
-                .shell(&format!("cat '{}' 2>/dev/null", out_path))
-                .await
-                .unwrap_or_default();
-            if content.contains("__DONE__") {
+        match installer::guest_exec(&adb, &user_cmd).await {
+            Ok(content) => {
                 print!("{}", content);
-                return 0;
+                0
+            }
+            Err(e) => {
+                eprintln!("[错误] 执行命令失败: {}", e);
+                5
             }
         }
-        eprintln!("[错误] 等待命令输出超时。");
-        6
     })
 }
 
@@ -544,16 +557,7 @@ pub fn port_cli(args: &[String]) -> i32 {
             .unwrap_or(5901);
         println!("设备: {}  端口: {}", serial, port);
 
-        println!("\n=== 放行端口 ===");
-        match ports::enable_port(&adb, port).await {
-            Ok(r) => {
-                println!("结果: {}  action={}", if r.ok { "成功" } else { "失败" }, r.action);
-                println!("说明: {}", r.message);
-            }
-            Err(e) => eprintln!("[错误] {}", e),
-        }
-
-        println!("\n=== 端口转发 + 客户端 ===");
+        println!("\n=== 端口通道 + 客户端 ===");
         let password = args
             .iter()
             .find_map(|a| a.strip_prefix("--password="))
@@ -562,6 +566,7 @@ pub fn port_cli(args: &[String]) -> i32 {
         let mut progress = |msg: String| println!("  {}", msg);
         match vnc::setup_with(&adb, port, &password, &mut progress).await {
             Ok(s) => {
+                println!("通道: {}", s.relay_detail);
                 println!("转发: {}", s.forward_detail);
                 println!("客户端: {}", if s.viewer_path.is_empty() { "未找到" } else { &s.viewer_path });
                 println!("{}", s.message);

@@ -36,6 +36,8 @@ pub struct VncSetup {
     pub port: u16,
     pub forward_ok: bool,
     pub forward_detail: String,
+    /// 手机端把端口接到虚拟机的说明（走的是哪条通道）。
+    pub relay_detail: String,
     /// 是否真的能连上 VNC 服务（完成 RFB 握手）。
     pub reachable: bool,
     /// 探测详情（成功或失败原因）。
@@ -179,8 +181,26 @@ where
 }
 
 /// VncAuth 的挑战响应：用密码混淆后的 8 字节作为 DES 密钥，加密 16 字节挑战。
+///
+/// 关键点：**服务端真正用的密钥不是 passwd 文件里的字节**。
+///
+/// TigerVNC 存密码文件时，先用固定密钥 `{23,82,107,6,35,78,88,7}` 把明文密码
+/// 做一次 d3des 加密；读取密码文件时再用同一个固定密钥反混淆回**明文密码**，
+/// 这 8 个明文字节才是 VncAuth 挑战应答的 DES 密钥。
+///
+/// d3des 与标准 DES 的差别在于**密钥字节的位序相反**（每个字节按位取反），
+/// 数据部分则完全一致。所以：
+///   * 存密码文件：`d3des(FIXED, plain)` == `标准DES(取反(FIXED), plain)`；
+///   * 挑战应答：`d3des(plain, challenge)` == `标准DES(取反(plain), challenge)`。
+///
+/// 写错这一层，握手就会以 "Authentication failure" 收场。
 fn vnc_auth_response(password: &str, challenge: &[u8]) -> [u8; 16] {
-    let key = vnc_passwd_bytes(password);
+    // 明文密码补 0 到 8 字节，再逐字节按位取反（还原 d3des 的密钥位序）。
+    let mut key = [0u8; 8];
+    for (i, b) in password.as_bytes().iter().take(8).enumerate() {
+        key[i] = b.reverse_bits();
+    }
+
     let cipher = Des::new(GenericArray::from_slice(&key));
     let mut out = [0u8; 16];
     for i in 0..2 {
@@ -588,6 +608,26 @@ pub async fn setup_with(
     password: &str,
     progress: &mut (dyn FnMut(String) + Send),
 ) -> Result<VncSetup> {
+    // 第一步：把手机上的端口接到虚拟机。
+    //
+    // AVF 虚拟机挂在手机的虚拟网卡上（手机自己就是网关），PC 访问不到它，
+    // 所以先在手机上起一个中继，让手机监听该端口并转发进虚拟机。
+    // Terminal 自带的「端口放行」在部分机型上会卡死应用主线程，
+    // 因此只在中继不可用时才退回那条路。
+    progress("正在把端口接到虚拟机…".to_string());
+    let relay_detail = match crate::relay::ensure_relay(adb, port).await {
+        Ok(msg) => msg,
+        Err(e) => {
+            progress(format!("手机端中继不可用（{}），改用 Terminal 的端口放行…", e));
+            match crate::ports::enable_port(adb, port).await {
+                Ok(r) if r.ok => format!("已通过 Terminal 放行端口 {}", port),
+                Ok(r) => format!("Terminal 未能放行端口 {}：{}", port, r.message),
+                Err(e2) => format!("端口通道建立失败：{}；Terminal 放行也失败：{}", e, e2),
+            }
+        }
+    };
+    progress(relay_detail.clone());
+
     let (forward_ok, forward_detail) = setup_forward(adb, port).await?;
     let connect_hint = format!("127.0.0.1:{}", port);
 
@@ -608,7 +648,7 @@ pub async fn setup_with(
         } else if probe_detail.contains("没有启用密码认证") {
             "服务端没有启用 VncAuth 密码认证，请重跑「TigerVNC 服务」步骤。\n\n"
         } else if probe_detail.contains("拒绝") || probe_detail.contains("不可达") {
-            "手机上的该端口没有监听 —— 多半是 Terminal 还没有放行这个端口。\n\n"
+            "手机上的该端口没有监听 —— 多半是虚拟机还没起来，或者端口通道没建好。\n\n"
         } else {
             ""
         };
@@ -616,6 +656,7 @@ pub async fn setup_with(
             port,
             forward_ok,
             forward_detail,
+            relay_detail,
             reachable: false,
             probe_detail,
             viewer_found: find_tigervnc_viewer().is_some(),
@@ -628,10 +669,10 @@ pub async fn setup_with(
                  常见原因：\n\
                  1) 虚拟机里的 TigerVNC 没有启动 —— 请回到「TigerVNC 服务」步骤重跑，\n\
                     并查看执行日志里的失败原因；\n\
-                 2) Terminal 应用没有放行 {} 端口 —— 打开 Terminal → 右上角 ⋮ →\n\
-                    Settings → Security（旧版是 Port control / 端口控制），在允许端口里打开该端口；\n\
-                 3) 端口刚放行、虚拟机转发尚未生效 —— 等几秒后重试。",
-                hint, port, reason, port
+                 2) 端口通道没有建立 —— 确认手机上的 Linux 虚拟机还在运行，\n\
+                    然后重新点一次上面的按钮；\n\
+                 3) 端口刚放行、转发尚未生效 —— 等几秒后重试。",
+                hint, port, reason
             ),
         });
     }
@@ -647,6 +688,7 @@ pub async fn setup_with(
                     port,
                     forward_ok,
                     forward_detail,
+                    relay_detail,
                     reachable,
                     probe_detail,
                     viewer_found: false,
@@ -678,6 +720,7 @@ pub async fn setup_with(
         port,
         forward_ok,
         forward_detail,
+        relay_detail,
         reachable,
         probe_detail,
         viewer_found: !viewer_path.is_empty(),

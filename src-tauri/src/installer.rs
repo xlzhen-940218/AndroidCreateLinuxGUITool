@@ -252,6 +252,59 @@ pub async fn push_script(
     Ok(remote)
 }
 
+/// 在虚拟机里执行一条命令，并把输出取回来。
+///
+/// 命令不会直接用 `input text` 注入（特殊字符会被设备 shell 拆坏），
+/// 而是先写成脚本推到共享目录，再让终端执行 `bash <脚本>`，
+/// 脚本的输出写回共享目录，PC 端轮询取回。
+///
+/// 返回的文本包含脚本输出以及末尾的 `__EXIT__=<码>` / `__DONE__` 标记。
+pub async fn guest_exec(adb: &Adb, cmd: &str) -> Result<String> {
+    let mapping = probe_shared(adb).await?;
+    guest_exec_with(adb, &mapping, cmd).await
+}
+
+/// 同 [`guest_exec`]，但复用已经探测好的共享目录映射。
+pub async fn guest_exec_with(
+    adb: &Adb,
+    mapping: &SharedMapping,
+    cmd: &str,
+) -> Result<String> {
+    let guest_dir = mapping.guest_dir.trim_end_matches('/');
+    let phone_dir = mapping.phone_dir.trim_end_matches('/');
+    let script = format!(
+        "#!/bin/bash\nexec > {g}/acl_exec_out.txt 2>&1\n{c}\necho \"__EXIT__=$?\"\necho \"__DONE__\"\n",
+        g = guest_dir,
+        c = cmd
+    );
+    let workdir = std::env::temp_dir().join("android-create-linux-gui-tool");
+    tokio::fs::create_dir_all(&workdir).await.ok();
+    let local = workdir.join("acl_exec.sh");
+    tokio::fs::write(&local, script.as_bytes())
+        .await
+        .with_context(|| format!("写入本地脚本失败: {}", local.display()))?;
+    let remote = format!("{}/acl_exec.sh", phone_dir);
+    adb.push(&local, &remote).await?;
+    adb.shell(&format!("rm -f '{}/acl_exec_out.txt'", phone_dir))
+        .await
+        .ok();
+
+    terminal::run_command(adb, &format!("bash {}/acl_exec.sh", guest_dir)).await?;
+
+    let out_path = format!("{}/acl_exec_out.txt", phone_dir);
+    for _ in 0..180 {
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        let content = adb
+            .shell(&format!("cat '{}' 2>/dev/null", out_path))
+            .await
+            .unwrap_or_default();
+        if content.contains("__DONE__") {
+            return Ok(content);
+        }
+    }
+    bail!("等待命令输出超时。")
+}
+
 /// 从日志内容中解析结果标记。
 fn parse_result(content: &str) -> Option<(bool, String)> {
     for line in content.lines() {

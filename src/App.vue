@@ -15,7 +15,6 @@ import type {
   InstallOptions,
   InstallStatus,
   InstalledReport,
-  PortResult,
   TerminalPhase,
   VncSetup,
 } from "./types";
@@ -92,7 +91,6 @@ const install = ref<InstallStatus>({
 const activeStage = ref<StageId>("base");
 const logs = ref<string[]>([]);
 const dialog = ref<DialogSpec | null>(null);
-const portResult = ref<PortResult | null>(null);
 const vnc = ref<VncSetup | null>(null);
 const vncProgress = ref("");
 const busy = ref(false);
@@ -132,6 +130,7 @@ const options = reactive<InstallOptions>({
   vncPassword: "linux",
   vncDisplay: ":1",
   vncGeometry: "1920x1080",
+  diskSizeGb: 32,
   installApps: true,
   installIme: true,
   sshPort: 10022,
@@ -541,6 +540,7 @@ async function installImage() {
   try {
     const r = await api.installLinuxImage(
       serial.value,
+      options.diskSizeGb,
       adbPathInput.value.trim() || undefined,
     );
     imageStatus.value = r;
@@ -737,35 +737,12 @@ async function captureScreen() {
 
 async function enableVncPort() {
   busy.value = true;
-  try {
-    const r = await api.enablePort(serial.value, 5901, adbPathInput.value.trim() || undefined);
-    portResult.value = r;
-    if (!r.ok) {
-      showDialog({
-        title: t("vnc.portFailTitle"),
-        message: r.message,
-        tone: "error",
-        buttons: [{ id: "retry-port", label: t("btn.retry"), primary: true }],
-      });
-      return;
-    }
-    await setupVnc();
-  } catch (e) {
-    showDialog({
-      title: t("vnc.portFailTitle"),
-      message: String(e),
-      tone: "error",
-      buttons: [{ id: "retry-port", label: t("btn.retry"), primary: true }],
-    });
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function setupVnc() {
-  busy.value = true;
   vncProgress.value = "";
   try {
+    // 一次调用把整条链路都走完：
+    // 手机端端口中继 → adb forward → RFB 握手探测 → 拉起 PC 端 TigerVNC。
+    // 这一步不再依赖 Terminal 的「端口放行」—— 在部分机型上切换那个开关
+    // 会让 Terminal 应用主线程卡死，反而把虚拟机和端口一起搞没。
     const r = await api.setupVnc(
       serial.value,
       5901,
@@ -810,9 +787,7 @@ async function setupVnc() {
         host: r.connectHint,
         password: options.vncPassword,
       }),
-      detail: r.viewerDownloaded
-        ? t("vnc.bundledDetail", { version: "1.16.0" })
-        : "",
+      detail: r.viewerDownloaded ? t("vnc.bundledDetail", { version: "1.16.0" }) : "",
       tone: "success",
       buttons: [
         { id: "open-avnc", label: t("btn.installAvncPhone"), primary: true },
@@ -1147,6 +1122,20 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             <li>{{ t("image.note1") }}</li>
             <li>{{ t("image.note2") }}</li>
           </ul>
+          <div class="grid">
+            <div class="field">
+              <label>{{ t("image.diskLabel") }}</label>
+              <div class="row">
+                <div class="sub">
+                  <span>{{ t("image.diskSizeLabel") }}</span>
+                  <input v-model.number="options.diskSizeGb" class="input" type="number" min="0" max="512" />
+                </div>
+                <div class="sub">
+                  <span>{{ t("image.diskHint") }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="actions">
             <button class="btn primary" :disabled="busy || imageChecking || !serial" @click="installImage()">
               {{ busy ? t("image.working") : t("image.start") }}
@@ -1316,11 +1305,8 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
         <section v-if="stepIds[current] === 'vnc'" class="card">
           <h2>{{ t("vnc.title") }}</h2>
           <p class="lead">{{ t("vnc.lead") }}</p>
-          <div v-if="portResult" class="kv">
-            <div><span>{{ t("vnc.port") }}</span><code>{{ portResult.message }} ({{ portResult.action }})</code></div>
-            <div><span>{{ t("vnc.listen") }}</span><code>{{ portResult.active ? t("vnc.detected") : t("vnc.pending") }}</code></div>
-          </div>
           <div v-if="vnc" class="kv">
+            <div><span>{{ t("vnc.port") }}</span><code>{{ vnc.relayDetail }}</code></div>
             <div><span>{{ t("vnc.forward") }}</span><code>{{ vnc.forwardDetail }}</code></div>
             <div>
               <span>{{ t("vnc.probe") }}</span>

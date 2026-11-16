@@ -37,8 +37,8 @@ export const api = {
     invoke<TerminalPhase>("terminal_phase", { serial, adbPath }),
   detectLinuxImage: (serial: string, adbPath?: string) =>
     invoke<ImageStatus>("detect_linux_image", { serial, adbPath }),
-  installLinuxImage: (serial: string, adbPath?: string) =>
-    invoke<ImageStatus>("install_linux_image", { serial, adbPath }),
+  installLinuxImage: (serial: string, diskSizeGb: number, adbPath?: string) =>
+    invoke<ImageStatus>("install_linux_image", { serial, diskSizeGb, adbPath }),
   openTerminal: (serial: string, adbPath?: string) =>
     invoke<void>("open_terminal", { serial, adbPath }),
   detectInstalled: (serial: string, adbPath?: string) =>

@@ -235,12 +235,17 @@ pub async fn detect_linux_image(
 }
 
 /// 「安装 Linux 系统」步骤：授权、打开 Terminal、必要时点安装、等待终端就绪。
+///
+/// 镜像就绪后会把虚拟机磁盘调整到 `disk_size_gb`（0 表示不调整）。
+/// Android 16 及以下需要这一步（镜像默认只有几 GB，装桌面环境会不够用）；
+/// Android 17 起 Terminal 由系统统一管理磁盘容量，会自动跳过。
 #[tauri::command]
 pub async fn install_linux_image(
     app: AppHandle,
     state: State<'_, AppState>,
     serial: String,
     adb_path: Option<String>,
+    disk_size_gb: Option<u32>,
 ) -> Result<terminal::ImageStatus, String> {
     let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
     let handle = app.clone();
@@ -248,7 +253,7 @@ pub async fn install_linux_image(
         use tauri::Emitter;
         let _ = handle.emit("image-progress", status);
     };
-    terminal::install_image(&adb, &mut emit)
+    terminal::install_image(&adb, &mut emit, disk_size_gb.unwrap_or(32))
         .await
         .map_err(|e| e.to_string())
 }

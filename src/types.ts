@@ -77,6 +77,8 @@ export interface InstallOptions {
   vncPassword: string;
   vncDisplay: string;
   vncGeometry: string;
+  /** 虚拟机磁盘目标大小（GB）；0 表示不调整。仅 Android 16 及以下生效。 */
+  diskSizeGb: number;
   installApps: boolean;
   installIme: boolean;
   sshPort: number;
@@ -131,6 +133,8 @@ export interface VncSetup {
   port: number;
   forwardOk: boolean;
   forwardDetail: string;
+  /** 手机端把端口接到虚拟机的说明（走的是哪条通道） */
+  relayDetail: string;
   /** 是否真的能连上 VNC 服务（完成 RFB 握手） */
   reachable: boolean;
   /** 探测详情（成功或失败原因） */

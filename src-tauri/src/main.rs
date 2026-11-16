@@ -84,6 +84,11 @@ fn main() {
         attach_parent_console();
         std::process::exit(acl_tool_lib::port_cli(&args));
     }
+    // 命令行磁盘模式：把虚拟机磁盘调整到指定容量（GB）
+    if args.iter().any(|a| a.starts_with("--disk=")) {
+        attach_parent_console();
+        std::process::exit(acl_tool_lib::disk_cli(&args));
+    }
     // 命令行调试模式：在虚拟机终端里执行一条命令
     if args.iter().any(|a| a.starts_with("--exec=")) {
         attach_parent_console();
