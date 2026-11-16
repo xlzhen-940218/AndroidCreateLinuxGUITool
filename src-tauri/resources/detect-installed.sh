@@ -54,6 +54,23 @@ VNC_UNIT="$(systemctl is-active tigervncserver@:1.service 2>/dev/null | head -n1
 SSH=0
 if has openssh-server; then SSH=1; fi
 
+# ---- 桌面音频 ----
+# auto_null 是 PulseAudio 的空输出设备：声音进了它不会有任何硬件发声，
+# 说明虚拟机里没有可用的扬声器，需要走音频串流。
+AUDIO_SINK=0
+AUDIO_SINK_NAME=""
+if command -v pactl > /dev/null 2>&1; then
+    AUDIO_SINK_NAME="$(pactl list short sinks 2>/dev/null | awk 'NR==1 {print $2}')"
+    if [ -n "$AUDIO_SINK_NAME" ] && [ "$AUDIO_SINK_NAME" != "auto_null" ]; then
+        AUDIO_SINK=1
+    fi
+fi
+AUDIO_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+AUDIO_MODULE=0
+if grep -q "module-simple-protocol-tcp" "$HOME/.config/pulse/default.pa" 2>/dev/null; then
+    AUDIO_MODULE=1
+fi
+
 {
     echo "DESKTOP=$DESK"
     echo "APPS=$APP_HAVE/$APP_TOTAL"
@@ -62,5 +79,9 @@ if has openssh-server; then SSH=1; fi
     echo "VNC_PORT=$VNC_PORT"
     echo "VNC_UNIT=$VNC_UNIT"
     echo "SSH=$SSH"
+    echo "AUDIO_SINK=$AUDIO_SINK"
+    echo "AUDIO_SINK_NAME=$AUDIO_SINK_NAME"
+    echo "AUDIO_MODULE=$AUDIO_MODULE"
+    echo "AUDIO_IP=$AUDIO_IP"
     echo "@@DONE"
 } >> "$LOG" 2>/dev/null

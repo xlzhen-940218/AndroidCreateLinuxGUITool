@@ -342,6 +342,14 @@ pub struct InstalledReport {
     /// tigervncserver@:1.service 的状态（active / failed / inactive / unknown）。
     pub vnc_unit: String,
     pub ssh: bool,
+    /// 虚拟机里是否有可用的输出设备（自带扬声器）。
+    pub audio_sink: bool,
+    /// 当前输出设备名。
+    pub audio_sink_name: String,
+    /// 音频串流模块是否已配置。
+    pub audio_module: bool,
+    /// 桌面在虚拟网络里的地址。
+    pub audio_ip: String,
     pub message: String,
 }
 
@@ -395,6 +403,14 @@ fn parse_probe(content: &str) -> InstalledReport {
             r.vnc_unit = v.trim().to_string();
         } else if let Some(v) = line.strip_prefix("SSH=") {
             r.ssh = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("AUDIO_SINK=") {
+            r.audio_sink = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("AUDIO_SINK_NAME=") {
+            r.audio_sink_name = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("AUDIO_MODULE=") {
+            r.audio_module = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("AUDIO_IP=") {
+            r.audio_ip = v.trim().to_string();
         }
     }
     r.message = if r.desktop {

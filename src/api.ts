@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  AudioReport,
   AvfReport,
   DeviceEntry,
   DevOptionReport,
@@ -53,6 +54,10 @@ export const api = {
     invoke<VncSetup>("setup_vnc", { serial, port, adbPath, password }),
   installAvnc: (serial: string, adbPath?: string, password?: string) =>
     invoke<string>("install_avnc", { serial, adbPath, password }),
+  detectAudio: (serial: string, adbPath?: string) =>
+    invoke<AudioReport>("detect_audio", { serial, adbPath }),
+  setupAudio: (serial: string, adbPath?: string) =>
+    invoke<AudioReport>("setup_audio", { serial, adbPath }),
   captureScreen: (serial: string, adbPath?: string) =>
     invoke<string>("capture_screen", { serial, adbPath }),
   openExternal: (url: string) => invoke<void>("open_external", { url }),
@@ -72,6 +77,10 @@ export function onInstallStatus(cb: (status: InstallStatus) => void): Promise<Un
 
 export function onVncProgress(cb: (message: string) => void): Promise<UnlistenFn> {
   return listen<string>("vnc-progress", (e) => cb(e.payload));
+}
+
+export function onAudioProgress(cb: (message: string) => void): Promise<UnlistenFn> {
+  return listen<string>("audio-progress", (e) => cb(e.payload));
 }
 
 export function onImageProgress(cb: (status: ImageStatus) => void): Promise<UnlistenFn> {

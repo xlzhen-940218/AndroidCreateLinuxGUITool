@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, State};
 
 use crate::adb::Adb;
+use crate::audio;
 use crate::detect::AvfReport;
 use crate::devopts::{self, DevOptionReport, SecurityIssue};
 use crate::installer::{self, InstallOptions, InstallStatus};
@@ -381,6 +382,40 @@ pub async fn install_avnc(
     };
     let password = password.unwrap_or_else(|| "linux".to_string());
     vnc::install_avnc(&adb, &password, &mut progress)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 检测虚拟机的音频情况（是否自带扬声器、串流模块是否就绪）。
+#[tauri::command]
+pub async fn detect_audio(
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+) -> Result<audio::AudioReport, String> {
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    audio::detect(&adb).await.map_err(|e| e.to_string())
+}
+
+/// 配置桌面音频串流。
+///
+/// 虚拟机里已经有扬声器时什么都不做；否则用 PulseAudio 的
+/// simple-protocol-tcp 把桌面的声音推到手机上的 Simple Protocol Player，
+/// 并自动把地址与端口填好，用户只需打开 App 点「开始串流」。
+#[tauri::command]
+pub async fn setup_audio(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+) -> Result<audio::AudioReport, String> {
+    use tauri::Emitter;
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    let handle = app.clone();
+    let mut progress = move |msg: String| {
+        let _ = handle.emit("audio-progress", msg);
+    };
+    audio::setup(&adb, &mut progress)
         .await
         .map_err(|e| e.to_string())
 }

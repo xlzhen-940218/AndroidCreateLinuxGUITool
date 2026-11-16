@@ -4,6 +4,7 @@
 //! 自动化完成「开启 Linux 开发环境 → 安装 Debian 桌面环境 → 通过 VNC 远程使用」的完整流程。
 
 mod adb;
+mod audio;
 mod commands;
 mod detect;
 mod devopts;
@@ -621,6 +622,8 @@ pub fn run() {
             commands::enable_port,
             commands::setup_vnc,
             commands::install_avnc,
+            commands::detect_audio,
+            commands::setup_audio,
             commands::capture_screen,
             commands::open_external,
         ])

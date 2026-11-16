@@ -118,6 +118,14 @@ export interface InstalledReport {
   vncPort: boolean;
   vncUnit: string;
   ssh: boolean;
+  /** 虚拟机里是否有可用的输出设备（自带扬声器）。 */
+  audioSink: boolean;
+  /** 当前输出设备名。 */
+  audioSinkName: string;
+  /** 音频串流模块是否已配置。 */
+  audioModule: boolean;
+  /** 桌面在虚拟网络里的地址。 */
+  audioIp: string;
   message: string;
 }
 
@@ -148,12 +156,34 @@ export interface VncSetup {
   message: string;
 }
 
+/** 桌面音频串流的状态。 */
+export interface AudioReport {
+  /** 虚拟机里是否有可用的输出设备（自带扬声器）。 */
+  hasSpeaker: boolean;
+  /** 当前输出设备名。 */
+  sinkName: string;
+  /** 串流模块是否已配置。 */
+  moduleReady: boolean;
+  /** 桌面在虚拟网络里的地址。 */
+  guestIp: string;
+  port: number;
+  rate: number;
+  channels: number;
+  /** 手机上是否已安装音频播放器。 */
+  playerInstalled: boolean;
+  /** 播放器是否已打开。 */
+  playerLaunched: boolean;
+  /** 播放器里的地址与端口是否已自动填好。 */
+  prefilled: boolean;
+  /** 给用户看的说明。 */
+  message: string;
+}
+
 export interface DesktopPreset {
   id: string;
   name: string;
   size: string;
 }
-
 export const DESKTOP_PRESETS: DesktopPreset[] = [
   { id: "xfce", name: "XFCE", size: "~1.2 GB" },
   { id: "gnome", name: "GNOME", size: "~2.5 GB" },

@@ -98,8 +98,8 @@ command -v vncserver > /dev/null 2>&1 || VNC_CMD="tigervncserver"
 #   all     —— 依次执行全部阶段（未传参数时的旧行为）
 STAGE="${1:-all}"
 case "$STAGE" in
-    all|base|desktop|apps|vncsvc) ;;
-    *) fail "未知的安装阶段: $STAGE（可选 base / desktop / apps / vncsvc / all）" ;;
+    all|base|desktop|apps|vncsvc|audio) ;;
+    *) fail "未知的安装阶段: $STAGE（可选 base / desktop / apps / vncsvc / audio / all）" ;;
 esac
 stage_on() {
     [ "$STAGE" = "all" ] || [ "$STAGE" = "$1" ]
@@ -418,27 +418,48 @@ EOF
 chmod 644 "$HOME/.xsessionrc" 2>/dev/null || true
 echo "已强制 VNC 会话使用 X11（避免 Wayland 合成器导致黑屏）。"
 
+# 生成并落盘 VNC 密码文件（8 字节混淆结果）。
+#
+# 关键点：**先写临时文件，校验通过后再复制到目标路径**。
+#
+# 直接 `vncpasswd -f > 目标路径` 有两个隐患：
+#   1) 目标路径若正好是 vncpasswd 自己的默认密码文件，vncpasswd 对该文件的
+#      打开/截断与 shell 的输出重定向会互相干扰，落盘的可能不是预期的 8 字节；
+#   2) 一旦写坏，坏文件会留在磁盘上，服务端照样拿它当密码用。
+# 走临时文件后，只有校验通过的 8 字节才会落到目标路径。
+vnc_write_passwd_files() {
+    local tmp size d
+    tmp="$(mktemp /tmp/acl_vnc_passwd.XXXXXX 2>/dev/null || echo "/tmp/acl_vnc_passwd.$$")"
+    # 必须用 -f：从 stdin 读密码，把混淆后的 8 字节直接写到 stdout。
+    # 交互模式要求密码 ≥6 字符还会追问一次 view-only 密码；非交互执行时会一直
+    # 重试到 EOF 并退出，服务端解出的密码就是错的，表现就是客户端"认证失败"。
+    printf '%s\n' "$VNC_PASSWORD" | vncpasswd -f > "$tmp" 2>/dev/null || true
+    size="$(wc -c < "$tmp" 2>/dev/null | tr -d ' ')"
+    if [ "$size" != "8" ]; then
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
+    fi
+    mkdir -p "$HOME/.vnc" "$HOME/.config/tigervnc" 2>/dev/null || true
+    for d in "$HOME/.vnc" "$HOME/.config/tigervnc"; do
+        cp "$tmp" "$d/passwd" 2>/dev/null || { rm -f "$tmp" 2>/dev/null || true; return 1; }
+        # TigerVNC 强制要求密码文件权限为 0600，否则拒绝启动
+        chmod 600 "$d/passwd" 2>/dev/null || true
+    done
+    rm -f "$tmp" 2>/dev/null || true
+    # 复制之后再校验一次：任何一个不是 8 字节，服务端都会当成"没有配置密码"
+    for d in "$HOME/.vnc" "$HOME/.config/tigervnc"; do
+        size="$(wc -c < "$d/passwd" 2>/dev/null | tr -d ' ')"
+        [ "$size" = "8" ] || return 1
+    done
+    return 0
+}
+
 if [ -n "$VNC_PASSWORD" ]; then
     echo "正在设置 VNC 密码..."
-    # Debian 13 的 TigerVNC 使用 XDG 路径（~/.config/tigervnc/），
-    # 旧版本用 ~/.vnc/；两个位置都写，避免版本差异。
-    mkdir -p "$HOME/.vnc" "$HOME/.config/tigervnc"
     command -v vncpasswd > /dev/null 2>&1 || fail "找不到 vncpasswd，无法设置 VNC 密码。"
-    for PW_DIR in "$HOME/.vnc" "$HOME/.config/tigervnc"; do
-        PW_FILE="$PW_DIR/passwd"
-        # 必须用 -f：从 stdin 读密码，把混淆后的 8 字节直接写到 stdout。
-        # 交互模式要求密码 ≥6 字符，还会追问一次 view-only 密码；非交互执行时
-        # 会一直重试到 EOF 并退出，旧文件被原样保留 —— 服务端解出的密码就是错的，
-        # 表现就是客户端"认证失败"。
-        rm -f "$PW_FILE"
-        printf '%s\n' "$VNC_PASSWORD" | vncpasswd -f > "$PW_FILE" 2>/dev/null || true
-        if [ "$(wc -c < "$PW_FILE" 2>/dev/null | tr -d ' ')" != "8" ]; then
-            rm -f "$PW_FILE"
-            fail "生成 VNC 密码文件失败（vncpasswd -f 未输出 8 字节）。"
-        fi
-        # TigerVNC 强制要求密码文件权限为 0600，否则拒绝启动
-        chmod 600 "$PW_FILE" 2>/dev/null || true
-    done
+    if ! vnc_write_passwd_files; then
+        fail "生成 VNC 密码文件失败（vncpasswd -f 未输出 8 字节）。"
+    fi
     echo "VNC 密码已设置。"
 fi
 
@@ -473,7 +494,79 @@ if [ -z "$VNC_UNIT" ] && systemctl list-unit-files 2>/dev/null | grep -q "tigerv
     VNC_UNIT="tigervncserver@${VNC_DISPLAY}.service"
 fi
 echo "VNC 服务单元: ${VNC_UNIT:-（未找到，改用直接启动）}"
-[ -n "$VNC_UNIT" ] && $SUDO systemctl enable "$VNC_UNIT" 2>/dev/null || true
+
+# ------------------------------------------------------------------
+#  自建 VNC 服务单元：直接跑 Xtigervnc，密码文件完全由我们自己掌管
+# ------------------------------------------------------------------
+# 为什么不用发行版的 tigervncserver@:1.service：
+# 它执行的是 tigervncsession / tigervncserver 包装脚本。包装脚本
+# （/usr/share/perl5/TigerVNC/Wrapper.pm 的 CreateVNCPasswd）在认为
+# 密码文件"不可用"时，会先 unlink 再**非交互地**调用 tigervncpasswd：
+# 非交互环境下 tigervncpasswd 读不到密码，只会把文件截断成 0 字节。
+# 服务端拿到 0 字节的 -PasswordFile，客户端就会报
+#   "No password configured for VNC Auth" / "Authentication failure"。
+#
+# 自建单元的好处：
+#   * Xtigervnc 启动时读一次 -rfbauth 指向的文件，之后就不再碰它；
+#   * 发行版单元被 disable 并停掉，不会开机时把我们的密码文件截断；
+#   * 开机自启、崩溃自愈交给 systemd，不依赖脚本。
+ACL_VNC_UNIT="acl-vnc.service"
+ACL_VNC_LAUNCHER="/usr/local/bin/acl-vnc-start.sh"
+if [ -n "$VNC_PASSWORD" ]; then
+    ACL_VNC_RFB_ARGS="-rfbauth $HOME/.vnc/passwd -SecurityTypes VncAuth"
+else
+    ACL_VNC_RFB_ARGS="-SecurityTypes None"
+fi
+write_acl_vnc_launcher() {
+    # Xtigervnc 自己**不会**启动桌面会话（Debian 12 的 TigerVNC 1.12
+    # 已经去掉了 -xstartup 选项），发行版是靠 tigervncsession 来做这件事。
+    # 这里自己实现同样的流程，好处是密码文件完全由我们掌管，
+    # 不会被包装脚本删掉再非交互地重建。
+    $SUDO tee "$ACL_VNC_LAUNCHER" > /dev/null <<EOF
+#!/bin/sh
+export DISPLAY="$VNC_DISPLAY"
+export HOME="$HOME"
+export XDG_RUNTIME_DIR="/run/user/\$(id -u)"
+export XDG_SESSION_TYPE=x11
+export GDK_BACKEND=x11
+export QT_QPA_PLATFORM=xcb
+unset WAYLAND_DISPLAY
+unset SESSION_MANAGER
+[ -r "\$HOME/.xsessionrc" ] && . "\$HOME/.xsessionrc"
+/usr/bin/Xtigervnc "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -depth 24 -rfbport "$VNC_PORT" $ACL_VNC_RFB_ARGS -localhost=0 -AlwaysShared &
+# 等 X 服务器就绪之后再拉桌面会话
+i=0
+while [ \$i -lt 40 ]; do
+    /usr/bin/xdpyinfo -display "$VNC_DISPLAY" >/dev/null 2>&1 && break
+    sleep 0.5
+    i=\$((i+1))
+done
+exec /usr/bin/dbus-launch --exit-with-session $SESSION_CMD
+EOF
+    $SUDO chmod 755 "$ACL_VNC_LAUNCHER" 2>/dev/null || true
+}
+write_acl_vnc_unit() {
+    write_acl_vnc_launcher
+    $SUDO tee /etc/systemd/system/acl-vnc.service > /dev/null <<EOF
+[Unit]
+Description=AndroidCreateLinuxGUITool VNC (Xtigervnc, 自持密码文件)
+After=network.target
+
+[Service]
+Type=simple
+User=$TARGET_USER
+Environment=HOME=$HOME
+WorkingDirectory=$HOME
+ExecStart=$ACL_VNC_LAUNCHER
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    $SUDO systemctl daemon-reload 2>/dev/null || true
+    $SUDO systemctl enable "$ACL_VNC_UNIT" 2>/dev/null || true
+}
 VNC_OK=0
 VNC_START_LOG="$HOME/.vnc/acl-vnc-start.log"
 : > "$VNC_START_LOG" 2>/dev/null || true
@@ -506,9 +599,24 @@ vnc_kill_stale_session() {
 }
 # 清掉上一次遗留的 X socket / lock 文件（仅在确认没有 Xtigervnc 运行时）
 vnc_clear_x_locks() {
-    if ! pgrep -f "Xtigervnc ${VNC_DISPLAY}" > /dev/null 2>&1; then
+    # 只要还有任何 Xtigervnc 进程在跑就不能删锁文件，否则会破坏正在运行的会话。
+    if ! pgrep -u "$TARGET_USER" -f "Xtigervnc" > /dev/null 2>&1; then
         $SUDO rm -f "/tmp/.X${VNC_DISPLAY#:}-lock" "/tmp/.X11-unix/X${VNC_DISPLAY#:}" 2>/dev/null || true
     fi
+}
+# 彻底干掉残留的 X 服务端。
+#
+# 发行版单元（tigervncsession）起的 Xtigervnc 还占着 :1 时，新实例会报
+# "X server already running on display :1" 起不来 —— 表现为端口虽然监听，
+# 但连进去是一块黑屏（桌面会话根本没起来）。
+vnc_kill_old_x_server() {
+    pkill -u "$TARGET_USER" -f "Xtigervnc" 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8; do
+        pgrep -u "$TARGET_USER" -f "Xtigervnc" > /dev/null 2>&1 || break
+        sleep 1
+    done
+    pkill -9 -u "$TARGET_USER" -f "Xtigervnc" 2>/dev/null || true
+    sleep 1
 }
 vnc_wait_port() {
     for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
@@ -524,10 +632,35 @@ vnc_wait_wm() {
     done
     return 1
 }
-# 服务端是否真的加载了密码文件。没有 -rfbauth / -PasswordFile 时，
-# 客户端会直接报 "No password configured for VNC Auth"。
+# 服务端**实际**使用的密码文件：从 /proc/<pid>/cmdline 里解析出
+# -rfbauth / -PasswordFile 的参数值。
+#
+# 以前只判断"命令行里有没有 -rfbauth"，那会把"指向了一个 0 字节文件"
+# 也算成已配置 —— 而服务端拿到空密码文件时，客户端报的正是
+# "No password configured for VNC Auth"。
+vnc_server_passwd_file() {
+    local pid prev="" arg
+    for pid in $(pgrep -u "$TARGET_USER" -f "Xtigervnc" 2>/dev/null); do
+        while IFS= read -r arg; do
+            case "$prev" in
+                -rfbauth|-PasswordFile) echo "$arg"; return 0 ;;
+            esac
+            prev="$arg"
+        done < <(tr '\0' '\n' < "/proc/$pid/cmdline" 2>/dev/null)
+    done
+    return 1
+}
+# 密码文件是否可用：存在且正好 8 字节（VncAuth 混淆结果就是 8 字节）
+vnc_passwd_file_ok() {
+    local f="$1"
+    [ -n "$f" ] || return 1
+    [ -f "$f" ] || return 1
+    [ "$(wc -c < "$f" 2>/dev/null | tr -d ' ')" = "8" ]
+}
+# 服务端是否真的加载了**可用**的密码文件
 vnc_auth_configured() {
-    pgrep -u "$TARGET_USER" -af Xtigervnc 2>/dev/null | grep -qi -- '-rfbauth\|-passwordfile'
+    [ -n "$VNC_PASSWORD" ] || return 0
+    vnc_passwd_file_ok "$(vnc_server_passwd_file 2>/dev/null | head -1)"
 }
 vnc_start_via_unit() {
     [ -n "$VNC_UNIT" ] || return 1
@@ -546,7 +679,11 @@ vnc_start_direct() {
     vnc_kill_stale_session
     vnc_clear_x_locks
     # 输出不再丢进 /dev/null：启动失败时这些内容就是唯一的线索
+    #
+    # 显式带上 -rfbauth：包装脚本只有在密码文件来自命令行时才会跳过
+    # CreateVNCPasswd（也就是不会删掉文件再非交互地重建它）。
     if $RUNAS $VNC_CMD "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -localhost no \
+        -rfbauth "$HOME/.vnc/passwd" \
         > "$VNC_START_LOG" 2>&1 && vnc_wait_port; then
         return 0
     fi
@@ -572,9 +709,12 @@ EOF
 }
 vnc_start_raw() {
     command -v Xtigervnc > /dev/null 2>&1 || return 1
+    # 用同一个启动器脚本，这样桌面会话也会被一起拉起来
+    # （Xtigervnc 自己不会启动会话，1.12 里已经没有 -xstartup 选项了）。
+    write_acl_vnc_launcher
     write_xstartup
-    local auth="$HOME/.config/tigervnc/passwd"
-    [ -f "$auth" ] || auth="$HOME/.vnc/passwd"
+    local auth="$HOME/.vnc/passwd"
+    [ -f "$auth" ] || auth="$HOME/.config/tigervnc/passwd"
     [ -f "$auth" ] || return 1
     $RUNAS $VNC_CMD -kill "$VNC_DISPLAY" > /dev/null 2>&1 || true
     pkill -u "$TARGET_USER" -f "Xtigervnc ${VNC_DISPLAY}" 2>/dev/null || true
@@ -582,14 +722,7 @@ vnc_start_raw() {
     vnc_clear_x_locks
     # setsid + nohup：脱离当前终端会话。否则安装脚本一结束，Xtigervnc
     # 可能随 Terminal 会话被一起清理，表现为"刚启动就掉线"。
-    #
-    # 注意：**不能**加 -xstartup 选项。Debian 12 自带的 TigerVNC 1.12
-    # 的 Xtigervnc 没有这个选项，会直接报
-    # "Fatal server error: Unrecognized option: -xstartup" 而起不来。
-    # Xtigervnc 默认就会执行 ~/.vnc/xstartup，write_xstartup 已经写好了。
-    $RUNAS setsid nohup Xtigervnc "$VNC_DISPLAY" -geometry "$VNC_GEOMETRY" -depth 24 \
-        -rfbport "$VNC_PORT" -rfbauth "$auth" -SecurityTypes VncAuth \
-        -localhost=0 -AlwaysShared \
+    $RUNAS setsid nohup "$ACL_VNC_LAUNCHER" \
         > "$VNC_START_LOG" 2>&1 < /dev/null &
     # 等端口就绪后再观察 2 秒，确认进程没有启动后立刻退出
     if vnc_wait_port && sleep 2 && vnc_port_listening; then
@@ -599,23 +732,59 @@ vnc_start_raw() {
     tail -15 "$VNC_START_LOG" 2>/dev/null | sed 's/^/    /'
     return 1
 }
-if vnc_start_via_unit; then
+# 自建单元启动：密码文件由我们自己指定，服务端不会再被包装脚本"接管"。
+vnc_start_acl_unit() {
+    command -v Xtigervnc > /dev/null 2>&1 || return 1
+    write_acl_vnc_unit
+    write_xstartup
+    vnc_kill_stale_session
+    $SUDO systemctl stop "$ACL_VNC_UNIT" 2>/dev/null || true
+    # 旧实例可能还在占着 :1，先彻底清掉再清锁文件
+    vnc_kill_old_x_server
+    vnc_clear_x_locks
+    if ! $SUDO systemctl start "$ACL_VNC_UNIT" 2>/dev/null; then
+        echo "[提示] 自建 VNC 单元启动失败，单元日志："
+        $SUDO journalctl -u "$ACL_VNC_UNIT" -n 15 --no-pager 2>/dev/null | sed 's/^/    /'
+        return 1
+    fi
+    vnc_wait_port
+}
+# 启动顺序（可靠性从高到低）：
+#   1) 自建单元 acl-vnc.service —— 我们自己拉起 Xtigervnc 与桌面会话，
+#      密码文件完全由我们掌管；
+#   2) 发行版 systemd 单元（tigervncsession）—— 由它负责拉起桌面会话，
+#      密码文件只要是 8 字节就会被正确复制使用；
+#   3) Xtigervnc 直接启动 —— 端口能起来，但会话要另外拉；
+#   4) vncserver 包装脚本直接启动 —— 最后兜底。**必须**显式带 -rfbauth：
+#      包装脚本只有在密码文件来自命令行时才会跳过 CreateVNCPasswd，
+#      而那个函数会先删掉密码文件、再非交互地调用 tigervncpasswd ——
+#      非交互环境下 tigervncpasswd 读不到密码，只会把文件截断成 0 字节，
+#      服务端就会报 "No password configured for VNC Auth"。
+if vnc_start_acl_unit; then
     VNC_OK=1
 else
-    echo "[提示] systemd 方式未能监听 ${VNC_PORT}，改用 $VNC_CMD 直接启动..."
-    if vnc_start_direct; then
+    echo "[提示] 自建 VNC 单元未能监听 ${VNC_PORT}，改用发行版单元..."
+    if vnc_start_via_unit; then
+        VNC_OK=1
+    elif vnc_start_raw; then
         VNC_OK=1
     else
-        echo "[提示] $VNC_CMD 方式失败，改用 Xtigervnc 直接启动..."
-        vnc_start_raw && VNC_OK=1
+        echo "[提示] Xtigervnc 直接启动也失败，改用 $VNC_CMD 包装脚本..."
+        vnc_start_direct && VNC_OK=1
     fi
 fi
 # 端口起来了但密码没生效（客户端报 "No password configured for VNC Auth"）
-# → 用带 -rfbauth 的方式重启一次，保证密码认证可用。
+# → 重新生成密码文件并用带 -rfbauth 的方式重启，保证密码认证可用。
 if [ "$VNC_OK" = "1" ] && [ -n "$VNC_PASSWORD" ] && ! vnc_auth_configured; then
-    echo "[提示] 当前 VNC 实例没有加载密码文件，改用 Xtigervnc 直接启动以强制启用 VncAuth..."
-    if vnc_start_raw; then
-        echo "VNC 密码认证已启用。"
+    echo "[提示] 当前 VNC 实例没有加载可用的密码文件，重新生成密码并重启..."
+    vnc_write_passwd_files || echo "[警告] 重新生成密码文件失败。"
+    if vnc_start_acl_unit || vnc_start_raw; then
+        if vnc_auth_configured; then
+            echo "VNC 密码认证已启用。"
+        else
+            echo "[警告] 服务端实际使用的密码文件仍不可用，客户端可能报 \"No password configured\"。"
+            echo "        当前密码文件: $(vnc_server_passwd_file 2>/dev/null | head -1)"
+        fi
     else
         echo "[警告] 未能启用密码认证，客户端可能报 \"No password configured\"。"
         VNC_OK=0
@@ -628,7 +797,7 @@ if [ "$VNC_OK" = "1" ] && ! vnc_wait_wm; then
     # 设过密码时优先用带 -rfbauth 的直接启动，避免 systemd 单元把
     # 密码配置丢掉（会变成 "No password configured for VNC Auth"）。
     if [ -n "$VNC_PASSWORD" ]; then
-        vnc_start_raw || vnc_start_via_unit || true
+        vnc_start_acl_unit || vnc_start_raw || true
     elif [ -n "$VNC_UNIT" ]; then
         vnc_start_via_unit || true
     else
@@ -704,6 +873,85 @@ fi
 
 fi  # 阶段 apps 结束
 
+# ============================ 阶段：音频串流 ============================
+if stage_on audio; then
+# ---------------------------- 桌面音频 ----------------------------
+step "audio"
+echo "正在检查桌面音频输出设备..."
+
+AUDIO_PORT=12345
+AUDIO_RATE=44100
+AUDIO_CHANNELS=2
+# 音频接收端用 PulseAudio 的 simple-protocol-tcp 模块：
+# guest 作为 TCP 服务端监听 12345，把桌面的 PCM 流推给手机上的播放器。
+# source=@DEFAULT_SINK@.monitor 抓的是"正在播放的内容"（不是麦克风）。
+AUDIO_MODULE_ARGS="module-simple-protocol-tcp rate=$AUDIO_RATE format=s16le channels=$AUDIO_CHANNELS source=@DEFAULT_SINK@.monitor record=true port=$AUDIO_PORT"
+
+# PulseAudio 是音频串流的前提
+if ! command -v pactl > /dev/null 2>&1; then
+    echo "正在安装 PulseAudio..."
+    $SUDO apt-get $APT_OPTS install -y pulseaudio pulseaudio-utils || echo "[警告] PulseAudio 安装失败，音频串流不可用。"
+fi
+
+audio_default_sink() {
+    pactl list short sinks 2>/dev/null | awk 'NR==1 {print $2}'
+}
+# 有没有"自带扬声器"：
+# auto_null 是 PulseAudio 的空输出设备 —— 声音进了它不会有任何硬件发声，
+# 说明虚拟机没有可用的声卡（AVF 虚拟机通常就是这种情况）。
+# 除它之外还有别的 sink，才说明系统已经把扬声器映射进虚拟机了。
+audio_has_real_sink() {
+    local name
+    name="$(audio_default_sink)"
+    [ -n "$name" ] || return 1
+    [ "$name" != "auto_null" ] || return 1
+    return 0
+}
+
+AUDIO_SINK=0
+AUDIO_MODULE=0
+if audio_has_real_sink; then
+    AUDIO_SINK=1
+    echo "检测到桌面自带扬声器（$(audio_default_sink)），无需音频串流。"
+else
+    echo "未检测到可用的扬声器（只有空输出设备 auto_null），改用音频串流。"
+    # 写进 default.pa：桌面会话（以及以后每次登录）启动 PulseAudio 时会自动加载。
+    # 这样即使脚本运行时没有正在运行的 PulseAudio 服务端也能生效。
+    mkdir -p "$HOME/.config/pulse" 2>/dev/null || true
+    PA_FILE="$HOME/.config/pulse/default.pa"
+    if ! grep -q "module-simple-protocol-tcp" "$PA_FILE" 2>/dev/null; then
+        echo "load-module $AUDIO_MODULE_ARGS" >> "$PA_FILE" 2>/dev/null || true
+        echo "已写入 $PA_FILE（桌面会话启动后自动加载）。"
+    else
+        echo "音频串流模块已在 $PA_FILE 中配置。"
+    fi
+    # 如果现在就有 PulseAudio 服务端在跑，立刻加载一次（免得用户还要重登）
+    if pactl info > /dev/null 2>&1; then
+        pactl unload-module module-simple-protocol-tcp 2>/dev/null || true
+        if pactl load-module $AUDIO_MODULE_ARGS 2>/dev/null; then
+            AUDIO_MODULE=1
+            echo "音频串流模块已加载，正在监听 ${AUDIO_PORT} 端口。"
+        else
+            echo "[提示] 音频模块加载失败，进入桌面会话后会再自动尝试。"
+        fi
+    else
+        echo "[提示] 当前没有运行中的 PulseAudio，进入桌面会话后会自动加载。"
+    fi
+fi
+
+AUDIO_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+echo "音频串流地址: ${AUDIO_IP:-未知}:${AUDIO_PORT}"
+{
+    echo "AUDIO_SINK=$AUDIO_SINK"
+    echo "AUDIO_MODULE=$AUDIO_MODULE"
+    echo "AUDIO_IP=$AUDIO_IP"
+    echo "AUDIO_PORT=$AUDIO_PORT"
+    echo "AUDIO_RATE=$AUDIO_RATE"
+    echo "AUDIO_CHANNELS=$AUDIO_CHANNELS"
+} >> "$LOG_FILE" 2>/dev/null
+
+fi  # 阶段 audio 结束
+
 # ---------------------------- 完成 ----------------------------
 step "done"
 echo ""
@@ -713,6 +961,7 @@ case "$STAGE" in
     desktop) echo " $DESKTOP_NAME 桌面环境安装完成！" ;;
     apps)    echo " 常用软件与中文输入法安装完成！" ;;
     vncsvc)  echo " TigerVNC 服务已配置并启动！" ;;
+    audio)   echo " 桌面音频串流已配置完成！" ;;
     *)       echo " 全部配置已完成！" ;;
 esac
 echo "============================================================"

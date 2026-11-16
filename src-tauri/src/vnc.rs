@@ -601,6 +601,41 @@ pub async fn launch_tigervnc(port: u16, password: &str) -> Result<(bool, String,
     }
 }
 
+/// 认证失败时自动修复虚拟机里的 VNC 密码。
+///
+/// 背景：Debian 自带的 TigerVNC 包装脚本（`tigervncserver` / `tigervncsession`）
+/// 在认为密码文件"不可用"时，会先删掉它再非交互地调用 `tigervncpasswd` ——
+/// 非交互环境下 `tigervncpasswd` 读不到密码，只会把文件截断成 0 字节。
+/// 服务端拿到 0 字节的 `-PasswordFile`，客户端就会报
+/// "No password configured for VNC Auth" / "Authentication failure"。
+///
+/// 这里做两件事：重新生成一个**校验过的 8 字节**密码文件，然后重启 VNC 服务。
+async fn repair_guest_vnc(adb: &Adb, password: &str) -> Result<String> {
+    // 单引号包裹密码，并转义其中的单引号
+    let pw = format!("'{}'", password.replace('\'', "'\\''"));
+    let cmd = format!(
+        r#"
+if ! command -v vncpasswd >/dev/null 2>&1; then echo "NO_VNCPASSWD"; exit 1; fi
+mkdir -p "$HOME/.vnc" "$HOME/.config/tigervnc"
+TMP="$(mktemp /tmp/acl_fix_pw.XXXXXX 2>/dev/null || echo /tmp/acl_fix_pw.$$)"
+printf '%s\n' {pw} | vncpasswd -f > "$TMP" 2>/dev/null || true
+if [ "$(wc -c < "$TMP" 2>/dev/null | tr -d ' ')" != "8" ]; then
+  echo "PW_BAD"; rm -f "$TMP" 2>/dev/null || true; exit 1
+fi
+cp "$TMP" "$HOME/.vnc/passwd" && chmod 600 "$HOME/.vnc/passwd"
+cp "$TMP" "$HOME/.config/tigervnc/passwd" && chmod 600 "$HOME/.config/tigervnc/passwd"
+rm -f "$TMP" 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+  if sudo -n systemctl restart acl-vnc.service >/dev/null 2>&1; then echo "RESTARTED"; exit 0; fi
+  if sudo -n systemctl restart "tigervncserver@:1.service" >/dev/null 2>&1; then echo "RESTARTED"; exit 0; fi
+fi
+echo "NO_SERVICE"
+"#,
+        pw = pw
+    );
+    crate::installer::guest_exec(adb, &cmd).await
+}
+
 /// 完整流程（带进度回调，用于在下载客户端时给前端反馈）。
 pub async fn setup_with(
     adb: &Adb,
@@ -634,7 +669,34 @@ pub async fn setup_with(
     // 先验证链路，再决定要不要拉起客户端：VNC 服务没起来时打开查看器
     // 只会看到一个 "connection was dropped" 的错误框，反而误导用户。
     progress("正在检测 VNC 服务是否可连接…".to_string());
-    let (reachable, probe_detail) = probe_vnc(port, password, 3).await;
+    let (mut reachable, mut probe_detail) = probe_vnc(port, password, 3).await;
+
+    // 认证类失败 → 自动重设虚拟机里的密码并重启服务，再复测一次。
+    // 这一步能救回"桌面装好了但突然连不上"的情况（密码文件被清空）。
+    if !reachable && (probe_detail.contains("密码认证失败") || probe_detail.contains("没有启用密码认证"))
+    {
+        progress("服务端密码认证失效，正在自动重设密码并重启 VNC 服务…".to_string());
+        match repair_guest_vnc(adb, password).await {
+            Ok(out) if out.contains("RESTARTED") => {
+                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                let (ok, detail) = probe_vnc(port, password, 4).await;
+                if ok {
+                    progress("密码已重设，VNC 连接恢复正常。".to_string());
+                    reachable = true;
+                    probe_detail = detail;
+                } else {
+                    probe_detail = format!("（已自动重设密码，但仍然连不上：{}）{}", detail, probe_detail);
+                }
+            }
+            Ok(_) => {
+                probe_detail = format!("（自动修复未生效：{}）{}", probe_detail, "虚拟机里没有可重启的 VNC 服务");
+            }
+            Err(e) => {
+                probe_detail = format!("（自动修复失败：{}）{}", e, probe_detail);
+            }
+        }
+    }
+
     if !forward_ok || !reachable {
         let reason = if !forward_ok {
             forward_detail.clone()

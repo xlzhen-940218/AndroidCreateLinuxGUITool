@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, onImageProgress, onInstallLog, onInstallStep, onInstallStatus, onVncProgress } from "./api";
+import { api, onAudioProgress, onImageProgress, onInstallLog, onInstallStep, onInstallStatus, onVncProgress } from "./api";
 import LogPanel from "./components/LogPanel.vue";
 import ModalDialog, { type DialogButton } from "./components/ModalDialog.vue";
 import { LOCALES, locale, setLocale, t, type Locale } from "./i18n";
 import { DESKTOP_PRESETS } from "./types";
 import type {
+  AudioReport,
   AvfReport,
   DeviceEntry,
   DevOptionReport,
@@ -29,7 +30,8 @@ type StepId =
   | "desktop"
   | "apps"
   | "vncsvc"
-  | "vnc";
+  | "vnc"
+  | "audio";
 
 /** 「安装桌面环境」拆出的 4 个独立安装阶段。 */
 type StageId = "base" | "desktop" | "apps" | "vncsvc";
@@ -55,6 +57,7 @@ const stepIds: StepId[] = [
   "apps",
   "vncsvc",
   "vnc",
+  "audio",
 ];
 const stageIds: StageId[] = ["base", "desktop", "apps", "vncsvc"];
 const themeIds: ThemeId[] = ["blue", "pink", "dark"];
@@ -93,6 +96,8 @@ const logs = ref<string[]>([]);
 const dialog = ref<DialogSpec | null>(null);
 const vnc = ref<VncSetup | null>(null);
 const vncProgress = ref("");
+const audio = ref<AudioReport | null>(null);
+const audioProgress = ref("");
 const busy = ref(false);
 const adbPathInput = ref("");
 const showAdbSettings = ref(false);
@@ -109,6 +114,7 @@ const done = reactive<Record<StepId, boolean>>({
   apps: false,
   vncsvc: false,
   vnc: false,
+  audio: false,
 });
 const failed = reactive<Record<StepId, boolean>>({
   env: false,
@@ -121,6 +127,7 @@ const failed = reactive<Record<StepId, boolean>>({
   apps: false,
   vncsvc: false,
   vnc: false,
+  audio: false,
 });
 
 const options = reactive<InstallOptions>({
@@ -835,6 +842,62 @@ async function installAvnc() {
   }
 }
 
+/* ------------------------------ 音频 ------------------------------ */
+
+/**
+ * 配置桌面音频。
+ *
+ * 虚拟机里已经有扬声器时直接返回；否则用 PulseAudio 把桌面的声音推到
+ * 手机上的 Simple Protocol Player，并把地址与端口自动填好。
+ */
+async function setupAudio() {
+  busy.value = true;
+  audioProgress.value = "";
+  try {
+    const r = await api.setupAudio(serial.value, adbPathInput.value.trim() || undefined);
+    audio.value = r;
+    const ok = r.hasSpeaker || r.moduleReady;
+    done.audio = ok;
+    failed.audio = !ok;
+    showDialog({
+      title: r.hasSpeaker ? t("audio.speakerTitle") : t("audio.readyTitle"),
+      message: r.message,
+      detail: r.hasSpeaker ? "" : t("audio.playHint"),
+      tone: r.hasSpeaker ? "success" : "info",
+      buttons: [{ id: "dismiss", label: t("btn.gotIt"), primary: true }],
+    });
+  } catch (e) {
+    failed.audio = true;
+    showDialog({
+      title: t("audio.failTitle"),
+      message: String(e),
+      tone: "error",
+      buttons: [{ id: "dismiss", label: t("btn.close") }],
+    });
+  } finally {
+    busy.value = false;
+    audioProgress.value = "";
+  }
+}
+
+/** 只检测音频现状，不改动任何东西。 */
+async function detectAudio() {
+  busy.value = true;
+  try {
+    const r = await api.detectAudio(serial.value, adbPathInput.value.trim() || undefined);
+    audio.value = r;
+  } catch (e) {
+    showDialog({
+      title: t("audio.failTitle"),
+      message: String(e),
+      tone: "error",
+      buttons: [{ id: "dismiss", label: t("btn.close") }],
+    });
+  } finally {
+    busy.value = false;
+  }
+}
+
 /* ------------------------------ 事件 ------------------------------ */
 
 onMounted(async () => {
@@ -850,6 +913,12 @@ onMounted(async () => {
   unlisteners.push(
     await onVncProgress((msg) => {
       vncProgress.value = msg;
+      logs.value.push(msg);
+    }),
+  );
+  unlisteners.push(
+    await onAudioProgress((msg) => {
+      audioProgress.value = msg;
       logs.value.push(msg);
     }),
   );
@@ -1270,6 +1339,11 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
                       : t("common.notRunning")
                 }}
               </span>
+              <span :class="installed.audioSink ? 'ok' : 'miss'">
+                {{ t("audio.speakerLabel") }}：{{
+                  installed.audioSink ? installed.audioSinkName : t("audio.noSpeaker")
+                }}
+              </span>
             </div>
             <div v-else class="detect-line">
               {{ t("inst.detectHint") }}
@@ -1333,6 +1407,51 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             </button>
             <button class="btn ghost" @click="api.openExternal('https://tigervnc.org/download/')">
               {{ t("btn.openTigerVnc") }}
+            </button>
+          </div>
+        </section>
+
+        <!-- 步骤 11：桌面音频 -->
+        <section v-if="stepIds[current] === 'audio'" class="card">
+          <h2>{{ t("audio.title") }}</h2>
+          <p class="lead">{{ t("audio.lead") }}</p>
+          <div v-if="audio" class="kv">
+            <div>
+              <span>{{ t("audio.speakerLabel") }}</span>
+              <code>{{
+                audio.hasSpeaker
+                  ? t("audio.hasSpeaker", { name: audio.sinkName })
+                  : t("audio.noSpeaker")
+              }}</code>
+            </div>
+            <div v-if="!audio.hasSpeaker">
+              <span>{{ t("audio.addrLabel") }}</span>
+              <code>{{ audio.guestIp }}:{{ audio.port }}</code>
+            </div>
+            <div v-if="!audio.hasSpeaker">
+              <span>{{ t("audio.formatLabel") }}</span>
+              <code>{{ audio.rate }} Hz · {{ audio.channels === 2 ? "stereo" : "mono" }}</code>
+            </div>
+            <div v-if="!audio.hasSpeaker">
+              <span>{{ t("audio.playerLabel") }}</span>
+              <code>{{ audio.playerInstalled ? t("audio.playerReady") : t("audio.playerMissing") }}</code>
+            </div>
+          </div>
+          <p v-if="audioProgress" class="lead">{{ audioProgress }}</p>
+          <div class="hintbox">
+            <strong>{{ t("audio.phoneBox") }}</strong>
+            <ul>
+              <li>{{ t("audio.step1") }}</li>
+              <li>{{ t("audio.step2") }}</li>
+              <li>{{ t("audio.step3") }}</li>
+            </ul>
+          </div>
+          <div class="actions">
+            <button class="btn primary" :disabled="busy || !serial" @click="setupAudio()">
+              {{ t("btn.setupAudio") }}
+            </button>
+            <button class="btn ghost" :disabled="busy || !serial" @click="detectAudio()">
+              {{ t("btn.detectAudio") }}
             </button>
           </div>
         </section>
