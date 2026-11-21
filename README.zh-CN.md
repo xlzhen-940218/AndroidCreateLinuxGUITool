@@ -7,7 +7,7 @@
 
 ![主界面](docs/images/gui-main.png)
 
-<p align="center"><em>10 步工作流：设备检测 → Linux 虚拟机 → 系统基础 → 桌面环境 → 常用软件 → VNC 服务 → 远程桌面</em></p>
+<p align="center"><em>11 步工作流：设备检测 → Linux 虚拟机 → 系统基础 → 桌面环境 → 常用软件 → VNC 服务 → 远程桌面 → 桌面音频</em></p>
 
 ![安装进度](docs/images/gui-installing.png)
 
@@ -15,7 +15,7 @@
 
 ## 功能亮点
 
-- **10 个引导步骤**：adb 检测、设备检测、AVF 检测、Linux 开发环境、系统镜像，随后是 4 个独立的安装阶段和远程桌面。
+- **11 个引导步骤**：adb 检测、设备检测、AVF 检测、Linux 开发环境、系统镜像，随后是 4 个独立的安装阶段、远程桌面和桌面音频。
 - **全自动安装**：自动打开开发者选项里的「Linux 开发环境」开关（兼容中英文系统界面），必要时自动安装 Terminal 系统镜像，并在虚拟机内执行幂等安装脚本。
 - **4 个独立安装阶段**：「系统基础 / 桌面环境 / 常用软件 / VNC 服务」分开执行，某一步失败只需重跑该步骤；上次中断留下的 dpkg 异常会自动修复。
 - **离线可用**：内置 adb、TigerVNC 查看器和 AVNC 安装包，网络受限时也能用。
@@ -33,7 +33,7 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 工具把 `install-desktop.sh` 渲染好（注入界面选项），推送到手机共享目录，再在 Terminal 应用中执行。
 进度（`@@STEP:` / `@@RESULT:`）和失败原因写入 `acl_install.log`，界面据此更新，不依赖 OCR 或读屏。
 
-## 十个步骤
+## 十一个步骤
 
 | # | 步骤 | 内容 |
 | --- | --- | --- |
@@ -45,8 +45,9 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 | 6 | 系统基础 | 修复 dpkg 中断状态、切换国内镜像源（可选）、`apt update/upgrade`、中文语言与中文字体、SSH（10022）、挂载共享目录 |
 | 7 | 桌面环境 | 安装所选桌面：XFCE（默认）、GNOME、KDE Plasma、MATE、Cinnamon、LXQt、LXDE、GNOME Flashback |
 | 8 | 常用软件 | 可选安装常用软件套件与 Fcitx5 中文输入法 |
-| 9 | VNC 服务 | 安装配置 TigerVNC、生成密码文件、启动 `:1` 会话（端口 5901），并校验窗口管理器确实接管 |
-| 10 | 远程桌面 | 放行 5901 端口（Terminal → ⋮ → Settings → Security）、`adb forward`、打开 TigerVNC；可为手机安装 AVNC |
+| 9 | VNC 服务 | 安装配置 TigerVNC、生成密码文件、在**独立显示号**（从 `:2` 起，避免和 Terminal 自带的 Weston/Xwayland `:1` 抢占）上启动 `acl-vnc.service`（端口 5901），并校验桌面会话确实接管 |
+| 10 | 远程桌面 | 建立手机端中继、`adb forward`、完成 VNC 密码握手、打开内置 TigerVNC；VNC 服务没起来时会自动重启；也可为手机安装 AVNC |
+| 11 | 桌面音频 | 检测虚拟机是否有真实扬声器；没有则配置 PulseAudio 串流，并在手机上安装 Simple Protocol Player |
 
 第 6–9 步就是原来单一的「安装桌面环境」，拆开之后每一步都更短、可单独重跑、也更容易定位问题。
 
@@ -75,11 +76,16 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 
 - 每个阶段都是幂等的；中途取消后再次点击安装，会从同一阶段继续。
 - 安装前会先做只读检测，显示已安装的**桌面环境 / 常用软件 / 中文输入法 / TigerVNC / SSH**，已完成的阶段可以跳过。
-- 默认参数：VNC 密码 `linux`，显示号 `:1`（端口 `5901`），分辨率 `1920x1080`，SSH 端口 `10022`。
+- 默认参数：VNC 密码 `linux`，固定端口 `5901`，分辨率 `1920x1080`，SSH 端口 `10022`。
+  VNC 的 X 显示号从 `:2` 起自动挑选，`:1` 留给 Terminal 自带的桌面。
 
 ### 第 10 步说明
 
-- 「放行端口并打开 TigerVNC」会依次完成端口放行、`adb forward tcp:5901`、启动内置查看器并填入地址与密码。
+- 「放行端口并打开 TigerVNC」会先检查 5901 是否已经可用；否则在手机端用一个独立端口（例如 15901）启动 `nc` 中继，
+  再用 `adb forward` 把 PC 的 `5901` 指过去。这样能绕过 Redmi K Pad 上 Terminal 留下的
+  “只监听、不转发”的僵尸 5901。随后完整校验一次 VNC 密码握手，最后打开内置查看器并填好地址与密码。
+- 虚拟机重启后如果 VNC 服务没在运行，工具会自动重启 `acl-vnc.service` 再重试；如果自动启动失败，
+  会提示你解锁手机、打开 Terminal 后重跑「TigerVNC 服务」步骤。
 - 「安装 AVNC」优先使用内置 APK，失败才回退到 GitHub 下载；连接参数为 `127.0.0.1:5901` 与第 9 步设置的 VNC 密码（用户名可留空，填 `droid` 亦可）。
 
 ## 从源码构建
@@ -111,8 +117,7 @@ cargo build --release --features custom-protocol
 | `--desktop=xfce` | 配合 `--install` 指定桌面环境 |
 | `--official-source` | 配合 `--install` 使用官方源与英文环境 |
 | `--no-apps` | 配合 `--install` 跳过常用软件套件 |
-| `--fetch-viewer` | 只下载免安装版 TigerVNC Viewer |
-| `--port=5901` | 放行端口 + `adb forward` + 尝试打开 TigerVNC |
+| `--port=5901` | 建立手机端中继 + `adb forward`、校验 VNC 密码握手并打开内置查看器 |
 | `--exec="<命令>"` | 在虚拟机终端执行一条命令并取回输出 |
 
 ```powershell
@@ -125,7 +130,7 @@ cargo build --release --features custom-protocol
 
 ```text
 ├─ src/                        # 前端（Vue 3）
-│  ├─ App.vue                  # 10 步工作流主界面
+│  ├─ App.vue                  # 11 步工作流主界面
 │  ├─ api.ts                   # Tauri command / 事件封装
 │  ├─ i18n.ts                  # 7 种界面语言
 │  ├─ types.ts                 # 前后端共享类型
@@ -133,12 +138,18 @@ cargo build --release --features custom-protocol
 ├─ src-tauri/
 │  ├─ src/
 │  │  ├─ adb.rs                # adb 封装（定位、shell、push、forward）
+│  │  ├─ apk.rs                # 内置 APK 的安装 / 启动 / 查询
+│  │  ├─ audio.rs              # 桌面音频检测与串流配置
 │  │  ├─ detect.rs             # 设备与 AVF 检测
 │  │  ├─ devopts.rs            # 开发者选项 / Linux 开发环境开关
+│  │  ├─ disk.rs               # 虚拟机磁盘扩容
 │  │  ├─ terminal.rs           # 驱动 Terminal 应用（聚焦、输入、点击）
 │  │  ├─ installer.rs          # 分阶段安装编排与日志轮询
-│  │  ├─ ports.rs              # VNC 端口放行
-│  │  ├─ vnc.rs                # TigerVNC 启动、AVNC 安装、adb forward
+│  │  ├─ relay.rs              # 手机端 nc 中继、虚拟机发现与链路校验
+│  │  ├─ ports.rs              # Terminal 端口放行回退路径
+│  │  ├─ vnc.rs                # VNC 探测/认证、查看器启动、AVNC
+│  │  ├─ uia.rs                # uiautomator 辅助
+│  │  ├─ util.rs               # 数据目录、内置文件、分离启动
 │  │  ├─ commands.rs           # 暴露给前端的 Tauri 命令
 │  │  └─ lib.rs / main.rs      # 入口与命令行模式
 │  └─ resources/
@@ -157,13 +168,16 @@ cargo build --release --features custom-protocol
 自动输入依赖软键盘。请保持手机亮屏解锁，必要时手动点一下 Terminal 的命令行区域再重试。
 
 **VNC 连上了但桌面黑屏**
-脚本已通过 `~/.xsessionrc` 强制 X11。可在终端执行 `bash /mnt/shared/acl_install.sh vncsvc` 重跑，残留的窗口管理器会话会被自动清理。
+脚本已通过 `~/.xsessionrc` 强制 X11，并在独立显示号（`:2` 起）上启动 VNC。可在终端执行 `bash /mnt/shared/acl_install.sh vncsvc` 重跑，VNC 显示号上的残留会话会被自动清理。
+
+**VNC 服务反复停止 / 提示「无法连接远程桌面」**
+点「远程桌面」时工具会自动重启 `acl-vnc.service`。如果自动启动失败（手机锁屏、Terminal 未就绪），请解锁手机并打开一次 Terminal，然后重跑「TigerVNC 服务」步骤。
 
 **安装卡在「Package configuration」**
 旧版本可能因 debconf 交互而停滞。当前版本通过 sudo 透传 `DEBIAN_FRONTEND=noninteractive` 并预置 keyboard-configuration 答案，请使用最新构建。
 
 **端口转发失败**
-重新插拔 USB 并确认 `adb devices` 正常；也可手动放行：Terminal → 右上角 ⋮ → Settings → Security → Listening ports，列表中若没有 5901 可点「+」添加。
+重新插拔 USB 并确认 `adb devices` 正常。工具默认使用自己的手机端中继，只有中继无法启动时才回退到 Terminal → 右上角 ⋮ → Settings → Security → Listening ports（列表中没有 5901 时点「+」添加）。
 
 **设备被误报为「企业管理设备」**
 部分 HyperOS/MIUI 输出小写的 `no owners`，新版本已按大小写不敏感匹配。

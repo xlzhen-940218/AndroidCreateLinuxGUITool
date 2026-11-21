@@ -7,7 +7,7 @@ with a Windows GUI that drives everything over ADB. No commands typed on the pho
 
 ![Main window](docs/images/gui-main.png)
 
-<p align="center"><em>10-step workflow: device detection → Linux VM → system base → desktop → apps → VNC → remote desktop</em></p>
+<p align="center"><em>11-step workflow: device detection → Linux VM → system base → desktop → apps → VNC → remote desktop → audio</em></p>
 
 ![Install progress](docs/images/gui-installing.png)
 
@@ -15,7 +15,7 @@ with a Windows GUI that drives everything over ADB. No commands typed on the pho
 
 ## Highlights
 
-- **10 guided steps** — adb detection, device check, AVF check, Linux developer environment, system image, then four independent install stages and a remote desktop launcher.
+- **11 guided steps** — adb detection, device check, AVF check, Linux developer environment, system image, four independent install stages, a remote desktop launcher and an optional desktop-audio step.
 - **Fully automatic install** — opens the Linux development environment switch (English and Chinese system UI), installs the Terminal image when needed, and runs an idempotent setup script inside the VM.
 - **4 separate install stages** — system base / desktop / common apps / VNC service. If one stage fails you only rerun that stage; dpkg interrupted states are repaired automatically.
 - **Offline-ready bundled assets** — adb, TigerVNC viewer and the AVNC APK ship inside the app, so nothing has to be downloaded behind a firewall.
@@ -34,7 +34,7 @@ The GUI renders `install-desktop.sh`, injects your options, pushes it to the pho
 executes it in the Terminal app. Progress (`@@STEP:` / `@@RESULT:`) and failures are read back from
 `acl_install.log`, so the UI never has to read the screen.
 
-## The 10 steps
+## The 11 steps
 
 | # | Step | What it does |
 | --- | --- | --- |
@@ -46,8 +46,9 @@ executes it in the Terminal app. Progress (`@@STEP:` / `@@RESULT:`) and failures
 | 6 | System base | Repairs interrupted dpkg state, switches to a China mirror (optional), `apt update/upgrade`, Chinese locale + CJK fonts, SSH on port 10022, shared-folder mount |
 | 7 | Desktop environment | Installs the desktop you pick: XFCE (default), GNOME, KDE Plasma, MATE, Cinnamon, LXQt, LXDE, GNOME Flashback |
 | 8 | Common apps | Optional app suite and the Fcitx5 Chinese input method |
-| 9 | VNC service | Installs and configures TigerVNC, writes the password file, starts the `:1` session (port 5901) and verifies the window manager actually took over |
-| 10 | Remote desktop | Allows port 5901 in Terminal → ⋮ → Settings → Security, runs `adb forward`, opens TigerVNC, and can install AVNC on the phone |
+| 9 | VNC service | Installs and configures TigerVNC, writes the password file, starts the `acl-vnc.service` session on a dedicated display (`:2`+, so it never competes with the Terminal's Weston/Xwayland `:1`) on port 5901, and verifies the desktop session actually took over |
+| 10 | Remote desktop | Starts the phone-side relay, runs `adb forward`, verifies the VNC password handshake, opens the bundled TigerVNC viewer, and can install AVNC on the phone. If the VNC service was stopped, it is restarted automatically |
+| 11 | Desktop audio | Detects whether the VM has a real speaker; otherwise configures PulseAudio streaming and installs the Simple Protocol Player on the phone |
 
 Stages 6–9 are the old single "install desktop" step, split so each one is short, restartable and easy to debug.
 
@@ -77,12 +78,17 @@ locale and input method; choosing "no" keeps the official Debian sources and an 
 
 - Every stage is idempotent. "Cancel" stops the run; pressing install again continues from the same stage.
 - Detected components (desktop / apps / IME / VNC / SSH) are shown before installing, so a second run can skip finished work.
-- Defaults: VNC password `linux`, display `:1` → port `5901`, geometry `1920x1080`, SSH port `10022`.
+- Defaults: VNC password `linux`, fixed VNC port `5901`, geometry `1920x1080`, SSH port `10022`.
+  The VNC X server picks a free display starting at `:2`; display `:1` is left to the Terminal's own desktop.
 
 ### Step 10 notes
 
-- "Allow port and open TigerVNC" performs the port release, `adb forward tcp:5901`, then starts the bundled
-  viewer and fills in the address and password.
+- "Allow port and open TigerVNC" first checks whether port 5901 is already served, otherwise starts a phone-side
+  `nc` relay on a separate phone port (for example 15901) and maps PC `5901` to it with `adb forward`. This bypasses
+  stale Terminal forwards such as the "listening but not forwarding" socket seen on Redmi K Pad.
+  It then performs a real VncAuth handshake and starts the bundled viewer with the address and password pre-filled.
+- If the VNC service was stopped (for example after a VM restart), the tool restarts `acl-vnc.service` and retries.
+  If it cannot, it tells you to unlock the phone and rerun the "VNC service" step.
 - "Install AVNC" uses the bundled AVNC APK first and only falls back to GitHub if that fails.
   Connect with `127.0.0.1:5901` and the VNC password from step 9 (username is optional, `droid` also works).
 
@@ -115,8 +121,7 @@ Output: `src-tauri/target/release/android-create-linux-gui-tool.exe`.
 | `--desktop=xfce` | With `--install`: pick the desktop |
 | `--official-source` | With `--install`: Debian official sources + English locale |
 | `--no-apps` | With `--install`: skip the common app suite |
-| `--fetch-viewer` | Download the portable TigerVNC viewer only |
-| `--port=5901` | Release the port, `adb forward`, and try to open TigerVNC |
+| `--port=5901` | Establish the phone relay + `adb forward`, verify VNC auth, and open the bundled viewer |
 | `--exec="<command>"` | Run one command in the VM terminal and read the output |
 
 ```powershell
@@ -129,7 +134,7 @@ Output: `src-tauri/target/release/android-create-linux-gui-tool.exe`.
 
 ```text
 ├─ src/                        # Vue 3 frontend
-│  ├─ App.vue                  # 10-step workflow UI
+│  ├─ App.vue                  # 11-step workflow UI
 │  ├─ api.ts                   # Tauri commands / events
 │  ├─ i18n.ts                  # 7 UI languages
 │  ├─ types.ts                 # shared types
@@ -137,12 +142,18 @@ Output: `src-tauri/target/release/android-create-linux-gui-tool.exe`.
 ├─ src-tauri/
 │  ├─ src/
 │  │  ├─ adb.rs                # adb wrapper (locate, shell, push, forward)
+│  │  ├─ apk.rs                # bundled APK install / launch / query
+│  │  ├─ audio.rs              # desktop audio detection and streaming setup
 │  │  ├─ detect.rs             # device and AVF detection
 │  │  ├─ devopts.rs            # developer options / Linux environment switch
+│  │  ├─ disk.rs               # VM disk resizing
 │  │  ├─ terminal.rs           # drives the Terminal app (focus, type, tap)
 │  │  ├─ installer.rs          # per-stage orchestration and log polling
-│  │  ├─ ports.rs              # VNC port release
-│  │  ├─ vnc.rs                # TigerVNC launch, AVNC install, adb forward
+│  │  ├─ relay.rs              # phone-side nc relay + guest discovery/verification
+│  │  ├─ ports.rs              # Terminal port-control fallback
+│  │  ├─ vnc.rs                # VNC probe/auth, viewer launch, AVNC
+│  │  ├─ uia.rs                # uiautomator helpers
+│  │  ├─ util.rs               # data dir, bundled files, detached launch
 │  │  ├─ commands.rs           # Tauri commands exposed to the frontend
 │  │  └─ lib.rs / main.rs      # entry point and CLI modes
 │  └─ resources/
@@ -161,13 +172,19 @@ Output: `src-tauri/target/release/android-create-linux-gui-tool.exe`.
 Input injection needs the on-screen keyboard. Keep the phone unlocked and tap the Terminal command line once, then retry.
 
 **VNC connects but the desktop is black**
-The script forces X11 through `~/.xsessionrc`. Re-run `bash /mnt/shared/acl_install.sh vncsvc` in the Terminal; stale window-manager sessions are cleaned automatically.
+The script forces X11 through `~/.xsessionrc` and starts VNC on a dedicated display (`:2`+). Re-run
+`bash /mnt/shared/acl_install.sh vncsvc` in the Terminal; stale window-manager sessions on the VNC display are cleaned automatically.
+
+**VNC service keeps stopping / "VNC server unreachable"**
+The tool auto-starts `acl-vnc.service` when you press the remote-desktop button. If it cannot (phone locked,
+Terminal not ready), unlock the phone, open Terminal once, and re-run the "VNC service" step.
 
 **Install stopped at "Package configuration"**
 Older builds could stall in debconf. Current builds pass `DEBIAN_FRONTEND=noninteractive` through sudo and preseed keyboard-configuration; make sure you run the latest executable.
 
 **Port forwarding fails**
-Replug USB and check `adb devices`. You can also enable port 5901 manually: Terminal → ⋮ → Settings → Security → Listening ports (use the `+` button if it is not listed).
+Replug USB and check `adb devices`. The tool normally uses its own phone-side relay and only falls back to
+Terminal → ⋮ → Settings → Security → Listening ports if the relay cannot start.
 
 **Device is reported as enterprise-managed**
 HyperOS/MIUI sometimes prints `no owners`; recent builds match this case-insensitively.

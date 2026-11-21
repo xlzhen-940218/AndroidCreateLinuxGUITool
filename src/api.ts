@@ -10,7 +10,6 @@ import type {
   InstallStatus,
   ImageStatus,
   InstalledReport,
-  PortResult,
   SecurityIssue,
   TerminalPhase,
   VncSetup,
@@ -48,8 +47,6 @@ export const api = {
     invoke<InstallStatus>("run_install", { serial, options, stage, adbPath }),
   installStatus: () => invoke<InstallStatus>("install_status"),
   cancelInstall: () => invoke<void>("cancel_install"),
-  enablePort: (serial: string, port: number, adbPath?: string) =>
-    invoke<PortResult>("enable_port", { serial, port, adbPath }),
   setupVnc: (serial: string, port: number, adbPath?: string, password?: string) =>
     invoke<VncSetup>("setup_vnc", { serial, port, adbPath, password }),
   installAvnc: (serial: string, adbPath?: string, password?: string) =>

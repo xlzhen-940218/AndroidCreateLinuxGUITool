@@ -60,7 +60,6 @@ pub struct InstallOptions {
     /// zh_CN.UTF-8 | en_US.UTF-8
     pub locale: String,
     pub vnc_password: String,
-    pub vnc_display: String,
     pub vnc_geometry: String,
     pub install_apps: bool,
     pub install_ime: bool,
@@ -74,7 +73,6 @@ impl Default for InstallOptions {
             cn_mirror: true,
             locale: "zh_CN.UTF-8".to_string(),
             vnc_password: "linux".to_string(),
-            vnc_display: ":1".to_string(),
             vnc_geometry: "1920x1080".to_string(),
             install_apps: true,
             install_ime: true,
@@ -162,7 +160,6 @@ pub fn render_script(opts: &InstallOptions, log_path: &str) -> Result<String> {
 CN_MIRROR="{cn_mirror}"
 SYS_LOCALE="{locale}"
 VNC_PASSWORD="{vnc_password}"
-VNC_DISPLAY="{vnc_display}"
 VNC_GEOMETRY="{vnc_geometry}"
 INSTALL_APPS="{install_apps}"
 INSTALL_IME="{install_ime}"
@@ -172,7 +169,6 @@ ACL_LOG_FILE="{log_path}""#,
         cn_mirror = if opts.cn_mirror { 1 } else { 0 },
         locale = opts.locale,
         vnc_password = opts.vnc_password.replace('"', ""),
-        vnc_display = opts.vnc_display,
         vnc_geometry = opts.vnc_geometry,
         install_apps = if opts.install_apps { 1 } else { 0 },
         install_ime = if opts.install_ime { 1 } else { 0 },
@@ -339,7 +335,8 @@ pub struct InstalledReport {
     pub vnc: bool,
     /// 虚拟机里 5901 端口是否真的在监听（装了包 ≠ 服务在跑）。
     pub vnc_port: bool,
-    /// tigervncserver@:1.service 的状态（active / failed / inactive / unknown）。
+    /// VNC 服务单元的状态：优先 acl-vnc.service，其次发行版单元
+    /// （active / failed / inactive / unknown）。
     pub vnc_unit: String,
     pub ssh: bool,
     /// 虚拟机里是否有可用的输出设备（自带扬声器）。

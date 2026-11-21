@@ -44,6 +44,8 @@ interface DialogSpec {
   detail?: string;
   tone?: "info" | "warn" | "error" | "success";
   buttons: DialogButton[];
+  /** 需要同步等待用户选择时（例如安装前的镜像选择）使用。 */
+  onAction?: (id: string) => void;
 }
 
 const stepIds: StepId[] = [
@@ -135,7 +137,6 @@ const options = reactive<InstallOptions>({
   cnMirror: true,
   locale: "zh_CN.UTF-8",
   vncPassword: "linux",
-  vncDisplay: ":1",
   vncGeometry: "1920x1080",
   diskSizeGb: 32,
   installApps: true,
@@ -178,7 +179,11 @@ function onDialogAction(id: string) {
   const d = dialog.value;
   dialog.value = null;
   if (!d) return;
-  handleDialogAction(id);
+  if (d.onAction) {
+    d.onAction(id);
+    return;
+  }
+  void handleDialogAction(id);
 }
 
 async function handleDialogAction(id: string) {
@@ -615,7 +620,6 @@ async function detectInstalled(silent = false) {
   }
 }
 
-/** 检测到已装好桌面时，跳过安装直接进入远程桌面。 */
 /** 跳过当前安装阶段，直接进入下一步（只标记当前阶段完成）。 */
 function skipStage() {
   const st = stageCurrent.value;
@@ -639,7 +643,7 @@ async function startInstall(stage: StageId = activeStage.value) {
   // 国内镜像 / 语言只在「系统基础」阶段询问一次（重试时沿用上次选择）
   if (stage === "base" && cnChoice.value === null) {
     const picked = await new Promise<boolean | null>((resolve) => {
-      dialog.value = {
+      showDialog({
         title: t("inst.cnTitle"),
         message: t("inst.cnMsg"),
         tone: "info",
@@ -648,15 +652,8 @@ async function startInstall(stage: StageId = activeStage.value) {
           { id: "official", label: t("inst.cnNo") },
           { id: "cancel", label: t("btn.cancel") },
         ],
-      };
-      const off = watchDialog(
-        (id) => {
-          off();
-          if (id === "cn") resolve(true);
-          else if (id === "official") resolve(false);
-          else resolve(null);
-        },
-      );
+        onAction: (id) => resolve(id === "cn" ? true : id === "official" ? false : null),
+      });
     });
     if (picked === null) return;
     cnChoice.value = picked;
@@ -691,26 +688,6 @@ async function startInstall(stage: StageId = activeStage.value) {
       ],
     });
   }
-}
-
-// 弹窗动作回调（用于 startInstall 内的同步等待）
-let dialogHandler: ((id: string) => void) | null = null;
-function watchDialog(cb: (id: string) => void) {
-  dialogHandler = cb;
-  return () => {
-    dialogHandler = null;
-  };
-}
-
-function onDialogActionWithHandler(id: string) {
-  const h = dialogHandler;
-  dialogHandler = null;
-  dialog.value = null;
-  if (h) {
-    h(id);
-    return;
-  }
-  onDialogAction(id);
 }
 
 async function cancelInstall() {
@@ -774,6 +751,8 @@ async function enableVncPort() {
       return;
     }
     if (!r.viewerFound) {
+      done.vnc = false;
+      failed.vnc = true;
       showDialog({
         title: t("vnc.viewerFailTitle"),
         message: t("vnc.viewerFailMsg"),
@@ -787,6 +766,21 @@ async function enableVncPort() {
       });
       return;
     }
+    if (!r.viewerLaunched) {
+      done.vnc = false;
+      failed.vnc = true;
+      showDialog({
+        title: t("vnc.startFailTitle"),
+        message: r.message,
+        tone: "error",
+        buttons: [
+          { id: "retry-port", label: t("btn.retry"), primary: true },
+          { id: "open-avnc", label: t("btn.installAvncPhone") },
+          { id: "dismiss", label: t("btn.close") },
+        ],
+      });
+      return;
+    }
     showDialog({
       title: t("vnc.readyTitle"),
       message: t("vnc.readyMsg", {
@@ -794,7 +788,6 @@ async function enableVncPort() {
         host: r.connectHint,
         password: options.vncPassword,
       }),
-      detail: r.viewerDownloaded ? t("vnc.bundledDetail", { version: "1.16.0" }) : "",
       tone: "success",
       buttons: [
         { id: "open-avnc", label: t("btn.installAvncPhone"), primary: true },
@@ -1467,7 +1460,7 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
       :detail="dialog.detail"
       :tone="dialog.tone"
       :buttons="dialog.buttons"
-      @action="onDialogActionWithHandler"
+      @action="onDialogAction"
     />
   </div>
 </template>

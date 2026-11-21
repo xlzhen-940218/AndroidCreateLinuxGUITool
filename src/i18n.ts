@@ -2105,15 +2105,6 @@ const MESSAGES: Record<string, Msg> = {
     ja: "{msg}\n\nPC 側は TigerVNC で {host} に接続（パスワード：{password}）。\nスマホ側は AVNC で 127.0.0.1:5901 に接続（ユーザー名は任意、パスワード：{password}）。",
     ko: "{msg}\n\nPC에서는 TigerVNC로 {host}에 연결(비밀번호: {password}).\n휴대폰에서는 AVNC로 127.0.0.1:5901에 연결(사용자 이름 선택, 비밀번호: {password}).",
   },
-  "vnc.bundledDetail": {
-    zh: "TigerVNC Viewer 使用的是本工具内置版本（v{version}），无需联网下载。",
-    en: "TigerVNC Viewer is the bundled build (v{version}) — no download needed.",
-    de: "TigerVNC Viewer ist die enthaltene Version (v{version}) – kein Download nötig.",
-    fr: "TigerVNC Viewer est la version intégrée (v{version}) — aucun téléchargement.",
-    es: "TigerVNC Viewer es la versión integrada (v{version}); no requiere descarga.",
-    ja: "TigerVNC Viewer は同梱版（v{version}）を使用します。ダウンロード不要です。",
-    ko: "TigerVNC Viewer는 내장 버전(v{version})을 사용합니다. 다운로드가 필요 없습니다.",
-  },
   "vnc.startFailTitle": {
     zh: "启动 VNC 失败",
     en: "Failed to start VNC",

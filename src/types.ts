@@ -75,7 +75,6 @@ export interface InstallOptions {
   cnMirror: boolean;
   locale: string;
   vncPassword: string;
-  vncDisplay: string;
   vncGeometry: string;
   /** 虚拟机磁盘目标大小（GB）；0 表示不调整。仅 Android 16 及以下生效。 */
   diskSizeGb: number;
@@ -116,6 +115,7 @@ export interface InstalledReport {
   vnc: boolean;
   /** 虚拟机里 5901 端口是否真的在监听（装了包 ≠ 服务在跑） */
   vncPort: boolean;
+  /** VNC 服务单元状态：优先 acl-vnc.service，其次发行版单元 */
   vncUnit: string;
   ssh: boolean;
   /** 虚拟机里是否有可用的输出设备（自带扬声器）。 */
@@ -129,14 +129,6 @@ export interface InstalledReport {
   message: string;
 }
 
-export interface PortResult {
-  port: number;
-  ok: boolean;
-  action: string;
-  message: string;
-  active: boolean;
-}
-
 export interface VncSetup {
   port: number;
   forwardOk: boolean;
@@ -148,8 +140,6 @@ export interface VncSetup {
   /** 探测详情（成功或失败原因） */
   probeDetail: string;
   viewerFound: boolean;
-  /** 客户端是本次自动下载得到的 */
-  viewerDownloaded: boolean;
   viewerPath: string;
   viewerLaunched: boolean;
   connectHint: string;

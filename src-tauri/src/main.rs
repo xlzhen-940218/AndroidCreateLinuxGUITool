@@ -74,12 +74,7 @@ fn main() {
         attach_parent_console();
         std::process::exit(acl_tool_lib::install_cli(&args));
     }
-    // 命令行：强制下载 TigerVNC Viewer（免安装版）
-    if args.iter().any(|a| a == "--fetch-viewer") {
-        attach_parent_console();
-        std::process::exit(acl_tool_lib::fetch_viewer_cli());
-    }
-    // 命令行端口模式：放行端口 + adb forward + TigerVNC
+    // 命令行端口模式：建立手机端通道 + adb forward + TigerVNC
     if args.iter().any(|a| a.starts_with("--port=")) {
         attach_parent_console();
         std::process::exit(acl_tool_lib::port_cli(&args));

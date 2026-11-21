@@ -50,7 +50,12 @@ if command -v ss > /dev/null 2>&1; then
 elif command -v netstat > /dev/null 2>&1; then
     netstat -ltn 2>/dev/null | awk '{print $4}' | grep -q ':5901$' && VNC_PORT=1
 fi
-VNC_UNIT="$(systemctl is-active tigervncserver@:1.service 2>/dev/null | head -n1)"
+# 本工具自建的 acl-vnc.service 优先；旧环境可能只有发行版单元。
+VNC_UNIT="$(systemctl is-active acl-vnc.service 2>/dev/null | head -n1)"
+if [ -z "$VNC_UNIT" ] || [ "$VNC_UNIT" = "inactive" ] || [ "$VNC_UNIT" = "failed" ]; then
+    legacy_unit="$(systemctl is-active tigervncserver@:1.service 2>/dev/null | head -n1)"
+    [ -n "$legacy_unit" ] && VNC_UNIT="$legacy_unit"
+fi
 SSH=0
 if has openssh-server; then SSH=1; fi
 

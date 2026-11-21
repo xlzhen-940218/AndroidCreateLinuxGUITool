@@ -70,7 +70,7 @@ pub fn bundled_adb() -> Option<PathBuf> {
     if !cfg!(windows) {
         return None;
     }
-    let dir = crate::vnc::tool_data_dir().join("platform-tools");
+    let dir = crate::util::tool_data_dir().join("platform-tools");
     let exe = dir.join("adb.exe");
     let api = dir.join("AdbWinApi.dll");
     let usb = dir.join("AdbWinUsbApi.dll");
@@ -322,15 +322,6 @@ impl Adb {
         } else {
             Err(anyhow!("端口转发失败: {}", out.combined().trim()))
         }
-    }
-
-    /// 列出当前所有端口转发。
-    pub async fn forward_list(&self) -> Result<String> {
-        Ok(self
-            .raw(&["forward", "--list"])
-            .await
-            .map(|o| o.stdout)
-            .unwrap_or_else(|_| String::new()))
     }
 
     /// 启动一个 Android Activity。

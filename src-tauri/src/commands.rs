@@ -9,11 +9,11 @@ use crate::audio;
 use crate::detect::AvfReport;
 use crate::devopts::{self, DevOptionReport, SecurityIssue};
 use crate::installer::{self, InstallOptions, InstallStatus};
-use crate::ports::{self, PortResult};
 use crate::state::AppState;
 use crate::terminal::{self, TerminalPhase};
 use crate::uia;
 use crate::vnc;
+use crate::util;
 
 /// adb 运行环境信息。
 #[derive(Debug, Clone, serde::Serialize)]
@@ -328,22 +328,11 @@ pub async fn cancel_install(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
-/// 在 Terminal 应用中放行指定端口。
-#[tauri::command]
-pub async fn enable_port(
-    state: State<'_, AppState>,
-    serial: String,
-    adb_path: Option<String>,
-    port: u16,
-) -> Result<PortResult, String> {
-    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
-    ports::enable_port(&adb, port).await.map_err(|e| e.to_string())
-}
-
 /// 建立端口转发并启动 TigerVNC Viewer。
 ///
-/// 本机没有安装 TigerVNC 时，会自动下载官方免安装版；下载过程通过
-/// `vnc-progress` 事件把进度推给前端。
+/// 客户端优先使用程序内置的 TigerVNC Viewer（离线可用），其次才是系统里
+/// 已安装的版本；不使用内置版本时也不会联网下载。进度通过 `vnc-progress`
+/// 事件推给前端。
 #[tauri::command]
 pub async fn setup_vnc(
     app: AppHandle,
@@ -445,5 +434,5 @@ pub async fn capture_screen(
 /// 在 PC 上用默认浏览器打开链接。
 #[tauri::command]
 pub async fn open_external(url: String) -> Result<(), String> {
-    vnc::open_url(&url).map_err(|e| e.to_string())
+    util::open_url(&url).map_err(|e| e.to_string())
 }

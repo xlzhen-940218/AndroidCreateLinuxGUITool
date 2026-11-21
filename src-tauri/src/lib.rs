@@ -4,6 +4,7 @@
 //! 自动化完成「开启 Linux 开发环境 → 安装 Debian 桌面环境 → 通过 VNC 远程使用」的完整流程。
 
 mod adb;
+mod apk;
 mod audio;
 mod commands;
 mod detect;
@@ -15,10 +16,24 @@ mod relay;
 mod state;
 mod terminal;
 mod uia;
+mod util;
 mod vnc;
 
 use adb::Adb;
 use state::AppState;
+
+/// 定位 adb，并选中唯一一台处于 `device` 状态的设备。
+async fn connect_device() -> Result<Adb, String> {
+    let exe = Adb::locate().map_err(|e| e.to_string())?;
+    let adb = Adb::new(exe, None);
+    let devices = adb.devices().await.map_err(|e| e.to_string())?;
+    let serial = devices
+        .iter()
+        .find(|d| d.state == "device")
+        .map(|d| d.serial.clone())
+        .ok_or_else(|| "没有可用设备（请连接手机并开启 USB 调试）".to_string())?;
+    Ok(adb.with_serial(serial))
+}
 
 /// 诊断模式：不启动 GUI，直接对已连接设备跑一遍检测并输出报告。
 ///
@@ -315,24 +330,14 @@ pub fn install_cli(args: &[String]) -> i32 {
         }
     };
     rt.block_on(async {
-        let exe = match Adb::locate() {
-            Ok(p) => p,
+        let adb = match connect_device().await {
+            Ok(a) => a,
             Err(e) => {
                 eprintln!("[错误] {}", e);
-                return 1;
-            }
-        };
-        let adb = Adb::new(exe, None);
-        let devices = adb.devices().await.unwrap_or_default();
-        let serial = match devices.iter().find(|d| d.state == "device") {
-            Some(d) => d.serial.clone(),
-            None => {
-                eprintln!("[错误] 没有可用设备");
                 return 2;
             }
         };
-        let adb = adb.with_serial(serial.clone());
-        println!("设备: {}", serial);
+        println!("设备: {}", adb.serial().unwrap_or(""));
 
         let mut opts = installer::InstallOptions::default();
         let mut stage = "all".to_string();
@@ -375,35 +380,6 @@ pub fn install_cli(args: &[String]) -> i32 {
     })
 }
 
-/// 命令行：强制下载 TigerVNC Viewer（免安装版）到本地目录。
-///
-/// 用法：`AndroidCreateLinuxGUITool.exe --fetch-viewer`
-pub fn fetch_viewer_cli() -> i32 {
-    let rt = match tokio::runtime::Runtime::new() {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("[错误] 无法创建异步运行时: {}", e);
-            return 1;
-        }
-    };
-    rt.block_on(async {
-        let dir = vnc::tool_data_dir();
-        tokio::fs::create_dir_all(&dir).await.ok();
-        let target = dir.join("vncviewer.exe");
-        let mut progress = |msg: String| println!("{}", msg);
-        match vnc::download_viewer(&target, &mut progress).await {
-            Ok(size) => {
-                println!("下载完成: {}（{} 字节）", target.display(), size);
-                0
-            }
-            Err(e) => {
-                eprintln!("[错误] {}", e);
-                1
-            }
-        }
-    })
-}
-
 /// 命令行磁盘模式：把虚拟机磁盘调整到指定容量（GB）。
 ///
 /// 用法：`AndroidCreateLinuxGUITool.exe --disk=32`
@@ -416,29 +392,23 @@ pub fn disk_cli(args: &[String]) -> i32 {
         }
     };
     rt.block_on(async {
-        let exe = match Adb::locate() {
-            Ok(p) => p,
+        let adb = match connect_device().await {
+            Ok(a) => a,
             Err(e) => {
                 eprintln!("[错误] {}", e);
-                return 1;
-            }
-        };
-        let adb = Adb::new(exe, None);
-        let devices = adb.devices().await.unwrap_or_default();
-        let serial = match devices.iter().find(|d| d.state == "device") {
-            Some(d) => d.serial.clone(),
-            None => {
-                eprintln!("[错误] 没有可用设备");
                 return 2;
             }
         };
-        let adb = adb.with_serial(serial.clone());
         let gb: u32 = args
             .iter()
             .find_map(|a| a.strip_prefix("--disk="))
             .and_then(|v| v.parse::<u32>().ok())
             .unwrap_or(32);
-        println!("设备: {}  目标磁盘: {} GB", serial, gb);
+        println!(
+            "设备: {}  目标磁盘: {} GB",
+            adb.serial().unwrap_or(""),
+            gb
+        );
 
         match disk::ensure_disk_size(&adb, gb).await {
             Ok(r) => {
@@ -482,24 +452,14 @@ pub fn exec_cli(args: &[String]) -> i32 {
             return 2;
         }
 
-        let exe = match Adb::locate() {
-            Ok(p) => p,
+        let adb = match connect_device().await {
+            Ok(a) => a,
             Err(e) => {
                 eprintln!("[错误] {}", e);
-                return 1;
-            }
-        };
-        let adb = Adb::new(exe, None);
-        let devices = adb.devices().await.unwrap_or_default();
-        let serial = match devices.iter().find(|d| d.state == "device") {
-            Some(d) => d.serial.clone(),
-            None => {
-                eprintln!("[错误] 没有可用设备");
                 return 2;
             }
         };
-        let adb = adb.with_serial(serial.clone());
-        println!("设备: {}", serial);
+        println!("设备: {}", adb.serial().unwrap_or(""));
 
         // 确保终端应用在前台即可；不要无条件重启 Activity
         // （旧版 Terminal 每次 Activity 重建都会把会话拉回「正在准备终端」）。
@@ -534,65 +494,59 @@ pub fn port_cli(args: &[String]) -> i32 {
         }
     };
     rt.block_on(async {
-        let exe = match Adb::locate() {
-            Ok(p) => p,
+        let adb = match connect_device().await {
+            Ok(a) => a,
             Err(e) => {
                 eprintln!("[错误] {}", e);
-                return 1;
-            }
-        };
-        let adb = Adb::new(exe, None);
-        let devices = adb.devices().await.unwrap_or_default();
-        let serial = match devices.iter().find(|d| d.state == "device") {
-            Some(d) => d.serial.clone(),
-            None => {
-                eprintln!("[错误] 没有可用设备");
                 return 2;
             }
         };
-        let adb = adb.with_serial(serial.clone());
         let port: u16 = args
             .iter()
             .find_map(|a| a.strip_prefix("--port="))
             .and_then(|v| v.parse::<u16>().ok())
-            .unwrap_or(5901);
-        println!("设备: {}  端口: {}", serial, port);
-
-        println!("\n=== 端口通道 + 客户端 ===");
+            .unwrap_or(vnc::VNC_PORT);
         let password = args
             .iter()
             .find_map(|a| a.strip_prefix("--password="))
             .unwrap_or("linux")
             .to_string();
+        println!(
+            "设备: {}  端口: {}",
+            adb.serial().unwrap_or(""),
+            port
+        );
+
         let mut progress = |msg: String| println!("  {}", msg);
         match vnc::setup_with(&adb, port, &password, &mut progress).await {
             Ok(s) => {
                 println!("通道: {}", s.relay_detail);
                 println!("转发: {}", s.forward_detail);
-                println!("客户端: {}", if s.viewer_path.is_empty() { "未找到" } else { &s.viewer_path });
+                println!(
+                    "探测: {} {}",
+                    if s.reachable { "✓" } else { "✗" },
+                    s.probe_detail
+                );
+                println!(
+                    "客户端: {}",
+                    if s.viewer_path.is_empty() {
+                        "未找到"
+                    } else {
+                        &s.viewer_path
+                    }
+                );
                 println!("{}", s.message);
-            }
-            Err(e) => eprintln!("[错误] {}", e),
-        }
-
-        println!("\n=== 连接测试 ===");
-        let (reachable, detail) = vnc::probe_vnc(port, &password, 3).await;
-        println!("{} {}", if reachable { "✓" } else { "✗" }, detail);
-
-        println!("\n=== TigerVNC Viewer ===");
-        match vnc::launch_tigervnc(port, &password).await {
-            Ok((launched, path, msg)) => {
-                if !path.is_empty() {
-                    println!("客户端: {}", path);
-                }
-                println!("{}", msg);
-                if !launched {
-                    return 3;
+                if s.reachable && s.viewer_launched {
+                    0
+                } else {
+                    3
                 }
             }
-            Err(e) => eprintln!("[错误] {}", e),
+            Err(e) => {
+                eprintln!("[错误] {}", e);
+                5
+            }
         }
-        0
     })
 }
 
@@ -619,7 +573,6 @@ pub fn run() {
             commands::run_install,
             commands::install_status,
             commands::cancel_install,
-            commands::enable_port,
             commands::setup_vnc,
             commands::install_avnc,
             commands::detect_audio,

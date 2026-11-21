@@ -13,11 +13,11 @@
 //! 串流方向：**guest 是 TCP 服务端**，手机上的播放器是客户端。
 //! 播放器默认连 12345 端口，采样率 44100、双声道、s16le。
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use serde::Serialize;
-use std::path::PathBuf;
 
 use crate::adb::Adb;
+use crate::apk;
 
 /// 音频播放器（Simple Protocol Player）的应用 ID。
 pub const PLAYER_PACKAGE: &str = "com.xlzhen.simpleprotocolplayer";
@@ -152,65 +152,6 @@ pub fn parse_audio_output(content: &str) -> AudioReport {
     r
 }
 
-/// 播放器是否已经装在手机上。
-pub async fn player_installed(adb: &Adb) -> bool {
-    adb.shell(&format!("pm path {}", PLAYER_PACKAGE))
-        .await
-        .map(|s| s.contains("package:"))
-        .unwrap_or(false)
-}
-
-/// 把内置的播放器安装包写到磁盘（`adb install` 需要主机上的文件路径）。
-fn write_bundled_player_apk(path: &PathBuf) -> Result<u64> {
-    if let Ok(meta) = std::fs::metadata(path) {
-        if meta.len() == BUNDLED_PLAYER_APK.len() as u64 {
-            return Ok(meta.len());
-        }
-    }
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    std::fs::write(path, BUNDLED_PLAYER_APK)?;
-    Ok(BUNDLED_PLAYER_APK.len() as u64)
-}
-
-/// 把播放器装到手机上，返回是否安装成功。
-pub async fn install_player(
-    adb: &Adb,
-    progress: &mut (dyn FnMut(String) + Send),
-) -> Result<bool> {
-    if player_installed(adb).await {
-        return Ok(true);
-    }
-    let apk = crate::vnc::tool_data_dir().join("simple-protocol-player.apk");
-    write_bundled_player_apk(&apk)?;
-    progress(format!(
-        "正在安装音频播放器 Simple Protocol Player {} …",
-        BUNDLED_PLAYER_TAG
-    ));
-    let out = adb
-        .raw(&["install", "-r", &apk.to_string_lossy()])
-        .await
-        .map_err(|e| anyhow!("调用 adb install 失败: {}", e))?;
-    let text = out.combined();
-    if !out.ok() || !text.to_lowercase().contains("success") {
-        bail!("安装音频播放器失败：{}", text.trim());
-    }
-    progress("音频播放器已安装。".to_string());
-    Ok(true)
-}
-
-/// 打开手机上的播放器。
-pub async fn launch_player(adb: &Adb) -> bool {
-    adb.shell(&format!(
-        "monkey -p {} -c android.intent.category.LAUNCHER 1",
-        PLAYER_PACKAGE
-    ))
-    .await
-    .map(|s| !s.contains("No activities found"))
-    .unwrap_or(false)
-}
-
 /// 把地址与端口自动填进播放器界面。
 ///
 /// 播放器把地址存在 SharedPreferences 里（不读 intent extras），
@@ -257,7 +198,7 @@ async fn prefill_player_fields(adb: &Adb, ip: &str, port: u16) -> bool {
 pub async fn detect(adb: &Adb) -> Result<AudioReport> {
     let out = crate::installer::guest_exec(adb, GUEST_AUDIO_SCRIPT).await?;
     let mut report = parse_audio_output(&out);
-    report.player_installed = player_installed(adb).await;
+    report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
     report.message = describe(&report);
     Ok(report)
 }
@@ -276,7 +217,7 @@ pub async fn setup(
             "桌面自带扬声器（{}），无需音频串流。",
             report.sink_name
         ));
-        report.player_installed = player_installed(adb).await;
+        report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
         report.message = describe(&report);
         return Ok(report);
     }
@@ -299,11 +240,19 @@ pub async fn setup(
         report.guest_ip, report.port
     ));
 
-    install_player(adb, progress).await?;
+    if !apk::installed(adb, PLAYER_PACKAGE).await {
+        let apk_path = apk::write_bundled("simple-protocol-player.apk", BUNDLED_PLAYER_APK)?;
+        progress(format!(
+            "正在安装音频播放器 Simple Protocol Player {} …",
+            BUNDLED_PLAYER_TAG
+        ));
+        apk::install(adb, &apk_path).await?;
+        progress("音频播放器已安装。".to_string());
+    }
     report.player_installed = true;
 
     progress("正在打开音频播放器…".to_string());
-    report.player_launched = launch_player(adb).await;
+    report.player_launched = apk::launch(adb, PLAYER_PACKAGE).await;
     tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
 
     progress("正在把地址填入播放器…".to_string());
@@ -334,11 +283,6 @@ fn describe(r: &AudioReport) -> String {
     if r.prefilled {
         s.push_str(&format!(
             "\n已自动填好地址 {} 和端口 {}，打开 App 点「开始串流」即可。",
-            r.guest_ip, r.port
-        ));
-    } else if r.player_launched {
-        s.push_str(&format!(
-            "\n请在手机上打开 Simple Protocol Player，地址填 {}，端口填 {}，然后点「开始串流」。",
             r.guest_ip, r.port
         ));
     } else {
