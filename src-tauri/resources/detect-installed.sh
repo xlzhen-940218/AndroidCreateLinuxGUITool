@@ -41,6 +41,14 @@ done
 # ---- 中文输入法 / VNC / SSH ----
 IME=0
 if has fcitx5 && has fcitx5-chinese-addons; then IME=1; fi
+# 装了包不代表能用：VNC 直启的会话不经过 /etc/X11/Xsession.d，im-config 不会
+# 注入 GTK_IM_MODULE / QT_IM_MODULE / XMODIFIERS，fcitx5 会收不到客户端，
+# 表现为 Ctrl+Space 毫无反应。这里检查安装脚本写入的标记与自启动条目。
+IME_ENV=0
+if grep -qF "Fcitx5 输入法" "$HOME/.xsessionrc" 2>/dev/null \
+    && [ -f "$HOME/.config/autostart/fcitx5.desktop" ]; then
+    IME_ENV=1
+fi
 VNC=0
 if has tigervnc-standalone-server; then VNC=1; fi
 # 装了包不等于服务在跑：查 5901 是否真的在监听
@@ -80,6 +88,7 @@ fi
     echo "DESKTOP=$DESK"
     echo "APPS=$APP_HAVE/$APP_TOTAL"
     echo "IME=$IME"
+    echo "IME_ENV=$IME_ENV"
     echo "VNC=$VNC"
     echo "VNC_PORT=$VNC_PORT"
     echo "VNC_UNIT=$VNC_UNIT"

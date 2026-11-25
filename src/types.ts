@@ -112,6 +112,8 @@ export interface InstalledReport {
   appsInstalled: number;
   appsTotal: number;
   ime: boolean;
+  /** 输入法会话环境是否配置好（未配置时 Ctrl+Space 不生效） */
+  imeEnv: boolean;
   vnc: boolean;
   /** 虚拟机里 5901 端口是否真的在监听（装了包 ≠ 服务在跑） */
   vncPort: boolean;

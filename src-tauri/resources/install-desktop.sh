@@ -135,6 +135,79 @@ VNC_PORT=5901
 # "APT_OPTS: 未绑定的变量"。
 APT_OPTS="-o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold"
 
+# ---------------------- 图形会话环境（X11 / 输入法） ----------------------
+# 本工具的桌面会话由 acl-vnc.service → /usr/local/bin/acl-vnc-start.sh 直接
+# 执行 `dbus-launch --exit-with-session startplasma-x11` 拉起，**不经过
+# /etc/X11/Xsession.d**，所以 im-config 写入的 ~/.xinputrc 永远不会生效：
+# GTK_IM_MODULE / QT_IM_MODULE / XMODIFIERS 一个都不会被注入。
+# 结果就是 fcitx5 明明在运行却收不到任何客户端连接，Ctrl+Space 完全失效。
+# 启动器唯一会 source 的文件是 ~/.xsessionrc，因此所有变量都写在那里。
+IME_ENV_MARK="# --- Fcitx5 输入法 (X11) ---"
+
+# 写入（覆盖）~/.xsessionrc 的 X11 强制段。
+# 虚拟机里 Terminal 自带的 Wayland 合成器不支持 layer-shell，
+# GTK 应用优先走 Wayland 会导致面板/桌面启动失败（黑屏），必须强制 X11。
+write_xsessionrc_base() {
+    cat > "$HOME/.xsessionrc" <<'EOF'
+unset WAYLAND_DISPLAY
+export XDG_SESSION_TYPE=x11
+export GDK_BACKEND=x11
+export QT_QPA_PLATFORM=xcb
+export CLUTTER_BACKEND=x11
+EOF
+    chmod 644 "$HOME/.xsessionrc" 2>/dev/null || true
+}
+
+# 让 fcitx5 在 VNC 直启的会话里真正可用：
+#   1) 把 IM 环境变量补进 ~/.xsessionrc（幂等，已有标记就跳过）；
+#   2) 补一个用户级 autostart 条目 —— /etc/xdg/autostart/im-launch.desktop
+#      只在 Xsession 的 phase 1 环境下拉起守护进程，本启动路径会直接 exit 0。
+# 没装 fcitx5 时反而要把变量撤掉：否则 GTK/Qt 应用会去找不存在的输入法模块。
+ensure_ime_session_env() {
+    if ! command -v fcitx5 > /dev/null 2>&1; then
+        if [ -f "$HOME/.xsessionrc" ] && grep -qF "$IME_ENV_MARK" "$HOME/.xsessionrc" 2>/dev/null; then
+            write_xsessionrc_base
+        fi
+        return 0
+    fi
+    [ -f "$HOME/.xsessionrc" ] || write_xsessionrc_base
+    if ! grep -qF "$IME_ENV_MARK" "$HOME/.xsessionrc" 2>/dev/null; then
+        {
+            echo ""
+            cat <<'EOF'
+# --- Fcitx5 输入法 (X11) ---
+# 该文件由 /usr/local/bin/acl-vnc-start.sh 在启动桌面之前 source，
+# 所以这里的变量会传递给整个桌面会话（plasmashell / kwin / 所有应用）。
+export GTK_IM_MODULE=fcitx
+export QT_IM_MODULE=fcitx
+export XMODIFIERS=@im=fcitx
+export SDL_IM_MODULE=fcitx
+export CLUTTER_IM_MODULE=xim
+EOF
+        } >> "$HOME/.xsessionrc" 2>/dev/null || true
+    fi
+    local ad="$HOME/.config/autostart/fcitx5.desktop"
+    if [ ! -f "$ad" ]; then
+        mkdir -p "$HOME/.config/autostart" 2>/dev/null || true
+        cat > "$ad" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Fcitx 5
+GenericName=Input Method
+Comment=Start Fcitx 5 input method daemon
+Exec=/usr/bin/fcitx5 -d
+Icon=fcitx
+Terminal=false
+Categories=System;Utility;
+NoDisplay=true
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-KDE-autostart-after=panel
+EOF
+        chmod 644 "$ad" 2>/dev/null || true
+    fi
+}
+
 # ============================ 阶段：系统基础 ============================
 if stage_on base; then
 step "environment"
@@ -442,15 +515,10 @@ echo "使用会话: $ACTUAL_SESSION"
 # 虚拟机里存在 Terminal 自带的 Wayland 合成器（/run/user/*/wayland-0）。
 # GTK 会优先选择 Wayland 后端，但那个合成器不支持 layer-shell 协议，
 # 于是 xfdesktop / xfce4-panel 启动即失败 —— 表现就是 VNC 连上后整屏黑色。
-# ~/.xsessionrc 会被 Debian 的 /etc/X11/Xsession 读取，在这里强制 X11。
-cat > "$HOME/.xsessionrc" <<'EOF'
-unset WAYLAND_DISPLAY
-export XDG_SESSION_TYPE=x11
-export GDK_BACKEND=x11
-export QT_QPA_PLATFORM=xcb
-export CLUTTER_BACKEND=x11
-EOF
-chmod 644 "$HOME/.xsessionrc" 2>/dev/null || true
+write_xsessionrc_base
+# 顺带补上 fcitx5 的会话变量与自启动条目（apps 阶段通常已经装好输入法）。
+# 这样无论是先跑 vncsvc 还是先跑 apps，最终 ~/.xsessionrc 都是完整的。
+ensure_ime_session_env
 echo "已强制 VNC 会话使用 X11（避免 Wayland 合成器导致黑屏）。"
 
 # 生成并落盘 VNC 密码文件（8 字节混淆结果）。
@@ -886,7 +954,19 @@ step "optional"
 if [ "$INSTALL_IME" = "1" ]; then
     echo "正在安装中文输入法 Fcitx5..."
     $SUDO apt-get $APT_OPTS install -y fcitx5 fcitx5-chinese-addons fcitx5-frontend-gtk3 fcitx5-frontend-qt5 im-config || echo "[警告] 输入法安装未完全成功。"
+    # GTK4 / Qt6 前端与拼音、码表引擎在不同套件里包名不一致（bookworm 就没有
+    # qt6 前端），逐个探测后再装，避免一个不存在的包让整条 apt 命令整体失败。
+    for p in fcitx5-frontend-gtk4 fcitx5-frontend-qt6 fcitx5-pinyin fcitx5-table fcitx5-config-qt; do
+        apt-cache show "$p" > /dev/null 2>&1 || continue
+        $SUDO apt-get $APT_OPTS install -y "$p" > /dev/null 2>&1 || true
+    done
     command -v im-config > /dev/null 2>&1 && im-config -n fcitx5 > /dev/null 2>&1 || true
+fi
+# 无论本次是否勾选输入法都校正一次：已装过 fcitx5 的机器重跑 apps 阶段时，
+# 同样需要把 IM 变量补进 ~/.xsessionrc，否则 Ctrl+Space 依旧无效。
+ensure_ime_session_env
+if command -v fcitx5 > /dev/null 2>&1; then
+    echo "输入法会话变量已写入 ~/.xsessionrc；重启桌面会话（重跑「TigerVNC 服务」或重启虚拟机）后生效。"
 fi
 if [ "$INSTALL_APPS" = "1" ]; then
     echo "正在安装常用桌面与系统软件套件（耗时较长）..."

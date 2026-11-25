@@ -1320,8 +1320,14 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
               <span :class="installed.apps ? 'ok' : 'miss'">
                 {{ t("inst.appsLabel") }}：{{ installed.appsInstalled }}/{{ installed.appsTotal }}
               </span>
-              <span :class="installed.ime ? 'ok' : 'miss'">
-                {{ t("inst.imeLabel") }}：{{ installed.ime ? t("common.installed") : t("common.notInstalled") }}
+              <span :class="installed.ime && installed.imeEnv ? 'ok' : 'miss'">
+                {{ t("inst.imeLabel") }}：{{
+                  !installed.ime
+                    ? t("common.notInstalled")
+                    : installed.imeEnv
+                      ? t("common.installed")
+                      : t("inst.imeNoEnv")
+                }}
               </span>
               <span :class="installed.vncPort ? 'ok' : 'miss'">
                 {{ t("inst.vncLabel") }}：{{
@@ -1340,6 +1346,9 @@ function stepState(id: StepId): "pending" | "active" | "done" | "failed" {
             </div>
             <div v-else class="detect-line">
               {{ t("inst.detectHint") }}
+            </div>
+            <div v-if="installed && installed.ime && !installed.imeEnv" class="detect-tip">
+              {{ t("inst.imeEnvTip") }}
             </div>
           </div>
 

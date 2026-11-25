@@ -332,6 +332,9 @@ pub struct InstalledReport {
     pub apps_installed: u32,
     pub apps_total: u32,
     pub ime: bool,
+    /// 输入法的会话环境是否配置好（~/.xsessionrc 注入 IM 变量 + autostart）。
+    /// 装了 fcitx5 但这里为 false 时，Ctrl+Space 不会生效。
+    pub ime_env: bool,
     pub vnc: bool,
     /// 虚拟机里 5901 端口是否真的在监听（装了包 ≠ 服务在跑）。
     pub vnc_port: bool,
@@ -392,6 +395,8 @@ fn parse_probe(content: &str) -> InstalledReport {
             }
         } else if let Some(v) = line.strip_prefix("IME=") {
             r.ime = v.trim() == "1";
+        } else if let Some(v) = line.strip_prefix("IME_ENV=") {
+            r.ime_env = v.trim() == "1";
         } else if let Some(v) = line.strip_prefix("VNC=") {
             r.vnc = v.trim() == "1";
         } else if let Some(v) = line.strip_prefix("VNC_PORT=") {
