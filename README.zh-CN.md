@@ -1,7 +1,7 @@
 # AndroidCreateLinuxGUITool
 
 在支持 **AVF（Android 虚拟化框架）的 Android 16+ 手机**上一键装好 Debian 桌面环境，
-并用 Windows 图形界面全程遥控，不需要在手机上手动敲命令。
+并用 Windows / Linux 图形界面全程遥控，不需要在手机上手动敲命令。
 
 [English](README.md) | **简体中文**
 
@@ -18,14 +18,14 @@
 - **11 个引导步骤**：adb 检测、设备检测、AVF 检测、Linux 开发环境、系统镜像，随后是 4 个独立的安装阶段、远程桌面和桌面音频。
 - **全自动安装**：自动打开开发者选项里的「Linux 开发环境」开关（兼容中英文系统界面），必要时自动安装 Terminal 系统镜像，并在虚拟机内执行幂等安装脚本。
 - **4 个独立安装阶段**：「系统基础 / 桌面环境 / 常用软件 / VNC 服务」分开执行，某一步失败只需重跑该步骤；上次中断留下的 dpkg 异常会自动修复。
-- **离线可用**：内置 adb、TigerVNC 查看器和 AVNC 安装包，网络受限时也能用。
+- **离线可用**：Windows 版内置 adb 与 TigerVNC 查看器，AVNC 安装包所有平台都内置，网络受限时也能用；Linux 版使用发行版的 `adb` 与 `tigervnc-viewer`（已写进 deb 依赖）。
 - **7 种界面语言**（中、英、德、法、西、日、韩）与 3 套主题（浅蓝、浅粉、黑夜）。
 - **真实进度回传**：脚本把标记写入共享目录的日志，PC 端通过 adb 轮询读取，无需识别屏幕。
 
 ## 工作原理
 
 ```text
-Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs──▶ Debian 内的 /mnt/shared
+Windows / Linux 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs──▶ Debian 内的 /mnt/shared
         ▲                                                        │
         └──────────── adb shell cat acl_install.log ◀────────────┘
 ```
@@ -37,7 +37,7 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 
 | # | 步骤 | 内容 |
 | --- | --- | --- |
-| 1 | 环境准备 | 优先使用内置 `adb`，找不到时可手动指定 `adb.exe` |
+| 1 | 环境准备 | 定位 `adb`：Windows 优先使用内置版本，Linux 使用系统 adb，找不到时可手动指定 |
 | 2 | 设备检测 | 检测已连接且已授权 USB 调试的设备，未连接时弹窗引导 |
 | 3 | 虚拟化检测 | 检查 `virtualization_framework` 与 `vm info`，不支持的机型提前提示 |
 | 4 | Linux 开发环境 | 在开发者选项中自动找到并打开「Linux 开发环境」开关（中英文界面），遇到企业策略 / 安全文件夹等限制时给出说明 |
@@ -46,15 +46,16 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 | 7 | 桌面环境 | 安装所选桌面：XFCE（默认）、GNOME、KDE Plasma、MATE、Cinnamon、LXQt、LXDE、GNOME Flashback |
 | 8 | 常用软件 | 可选安装常用软件套件与 Fcitx5 中文输入法 |
 | 9 | VNC 服务 | 安装配置 TigerVNC、生成密码文件、在**独立显示号**（从 `:2` 起，避免和 Terminal 自带的 Weston/Xwayland `:1` 抢占）上启动 `acl-vnc.service`（端口 5901），并校验桌面会话确实接管 |
-| 10 | 远程桌面 | 建立手机端中继、`adb forward`、完成 VNC 密码握手、打开内置 TigerVNC；VNC 服务没起来时会自动重启；也可为手机安装 AVNC |
+| 10 | 远程桌面 | 建立手机端中继、`adb forward`、完成 VNC 密码握手、打开 TigerVNC 查看器（Windows 内置，Linux 使用系统包）；VNC 服务没起来时会自动重启；也可为手机安装 AVNC |
 | 11 | 桌面音频 | 检测虚拟机是否有真实扬声器；没有则配置 PulseAudio 串流，并在手机上安装 Simple Protocol Player |
 
 第 6–9 步就是原来单一的「安装桌面环境」，拆开之后每一步都更短、可单独重跑、也更容易定位问题。
 
 ## 环境要求
 
-- Windows 10/11
-- 不需要单独安装 Android Platform Tools：工具内置 `adb`，也可指定自己的 `adb.exe`
+- Windows 10/11，或 Linux（在 Debian 13 上构建和验证，提供 `amd64` 与 `arm64` 两种 deb 包）
+- Windows 版不需要单独安装 Android Platform Tools：工具内置 `adb`，也可指定自己的 `adb.exe`
+- Linux 版需要 `adb` 与 `tigervnc-viewer`：deb 依赖已自动拉取；从源码运行时执行 `sudo apt install adb tigervnc-viewer`
 - 手机：Android 16+，支持 AVF，已开启 USB 调试
 - 安装时手机需保持**亮屏、解锁**：自动输入依赖软键盘，锁屏会让输入被系统丢弃
 - 手机至少预留约 2 GB 存储空间
@@ -62,11 +63,12 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 ## 快速开始
 
 1. 连接手机并解锁，确认 USB 调试已开启。
-2. 运行发布版：
+2. 安装并启动：
 
-   ```text
-   src-tauri\target\release\android-create-linux-gui-tool.exe
-   ```
+   - Windows：运行发布版 `src-tauri\target\release\android-create-linux-gui-tool.exe`
+   - Linux：`sudo apt install ./release/deb/AndroidCreateLinuxGUITool_0.1.0_amd64.deb`
+     （ARM 机器改用 `arm64` 包），然后从应用菜单启动 **AndroidCreateLinuxGUITool**，
+     或直接运行 `android-create-linux-gui-tool`
 
 3. 按左侧步骤依次操作，每一步完成后自动解锁下一步。
 
@@ -83,12 +85,15 @@ Windows 图形界面 ──adb push──▶ 手机共享存储 ──virtiofs�
 
 - 「放行端口并打开 TigerVNC」会先检查 5901 是否已经可用；否则在手机端用一个独立端口（例如 15901）启动 `nc` 中继，
   再用 `adb forward` 把 PC 的 `5901` 指过去。这样能绕过 Redmi K Pad 上 Terminal 留下的
-  “只监听、不转发”的僵尸 5901。随后完整校验一次 VNC 密码握手，最后打开内置查看器并填好地址与密码。
+  “只监听、不转发”的僵尸 5901。随后完整校验一次 VNC 密码握手，最后打开 TigerVNC 查看器
+  （Windows 内置、Linux 使用系统包）并填好地址与密码。
 - 虚拟机重启后如果 VNC 服务没在运行，工具会自动重启 `acl-vnc.service` 再重试；如果自动启动失败，
   会提示你解锁手机、打开 Terminal 后重跑「TigerVNC 服务」步骤。
 - 「安装 AVNC」优先使用内置 APK，失败才回退到 GitHub 下载；连接参数为 `127.0.0.1:5901` 与第 9 步设置的 VNC 密码（用户名可留空，填 `droid` 亦可）。
 
 ## 从源码构建
+
+### Windows
 
 前置：Node.js 18+、Rust（stable）、WebView2（Win10/11 自带）、MSVC 生成工具与 Windows SDK。
 
@@ -106,6 +111,39 @@ cargo build --release --features custom-protocol
 
 产物位于 `src-tauri/target/release/android-create-linux-gui-tool.exe`。
 
+### Linux（deb）
+
+前置：Node.js 18+、Rust（stable）以及 Tauri 需要的系统库。
+
+```bash
+sudo apt install build-essential pkg-config libssl-dev libwebkit2gtk-4.1-dev \
+  libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+npm install
+npm run tauri:build -- --bundles deb
+```
+
+产物位于 `src-tauri/target/release/bundle/deb/AndroidCreateLinuxGUITool_0.1.0_amd64.deb`。
+deb 已声明 `adb`、`tigervnc-viewer`、`xdg-utils`、`libwebkit2gtk-4.1-0`、`libgtk-3-0` 依赖，
+执行 `sudo apt install ./<包名>.deb` 即可。
+
+在 x86_64 Debian 上交叉编译 **arm64** 包：
+
+```bash
+rustup target add aarch64-unknown-linux-gnu
+sudo apt install crossbuild-essential-arm64 libwebkit2gtk-4.1-dev:arm64
+
+PKG_CONFIG_ALLOW_CROSS=1 \
+PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+RUSTFLAGS="-L/usr/lib/aarch64-linux-gnu -C link-arg=-Wl,-rpath-link,/usr/lib/aarch64-linux-gnu" \
+npm run tauri:build -- --target aarch64-unknown-linux-gnu --bundles deb
+```
+
+产物位于 `src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/deb/AndroidCreateLinuxGUITool_0.1.0_arm64.deb`。
+注意 `:arm64` 开发库会替换掉系统里的 `amd64` 版本，若之后还要编 x64 包，请先装回
+`libwebkit2gtk-4.1-dev:amd64`。已编译好的安装包见 `release/deb/`。
+
 ## 命令行参数
 
 | 参数 | 作用 |
@@ -117,7 +155,7 @@ cargo build --release --features custom-protocol
 | `--desktop=xfce` | 配合 `--install` 指定桌面环境 |
 | `--official-source` | 配合 `--install` 使用官方源与英文环境 |
 | `--no-apps` | 配合 `--install` 跳过常用软件套件 |
-| `--port=5901` | 建立手机端中继 + `adb forward`、校验 VNC 密码握手并打开内置查看器 |
+| `--port=5901` | 建立手机端中继 + `adb forward`、校验 VNC 密码握手并打开 TigerVNC 查看器 |
 | `--exec="<命令>"` | 在虚拟机终端执行一条命令并取回输出 |
 
 ```powershell
@@ -125,6 +163,9 @@ cargo build --release --features custom-protocol
 .\android-create-linux-gui-tool.exe --install --stage=base
 .\android-create-linux-gui-tool.exe --exec="uname -a"
 ```
+
+Linux 上可执行文件名为 `android-create-linux-gui-tool`，例如 `./android-create-linux-gui-tool --diagnose`
+或 `/usr/bin/android-create-linux-gui-tool --install --stage=base`。
 
 ## 项目结构
 
@@ -155,12 +196,16 @@ cargo build --release --features custom-protocol
 │  └─ resources/
 │     ├─ install-desktop.sh    # 在虚拟机内执行的分阶段安装脚本
 │     ├─ detect-installed.sh   # 只读环境检测脚本
-│     ├─ adb.exe               # 内置 adb
-│     ├─ vncviewer.exe         # 内置 TigerVNC 查看器
+│     ├─ adb.exe               # 内置 adb（仅 Windows）
+│     ├─ vncviewer.exe         # 内置 TigerVNC 查看器（仅 Windows）
 │     └─ avnc.apk              # 内置 Android VNC 客户端
 ├─ docs/images/                # README 截图
+├─ release/deb/                # 预编译的 amd64 / arm64 deb 包
 └─ shots/                      # 截图辅助脚本
 ```
+
+Linux 打包配置（deb 目标与运行时依赖）位于
+[`src-tauri/tauri.linux.conf.json`](src-tauri/tauri.linux.conf.json)，构建 Linux 版本时自动合并。
 
 ## 常见问题
 
@@ -181,6 +226,13 @@ cargo build --release --features custom-protocol
 
 **设备被误报为「企业管理设备」**
 部分 HyperOS/MIUI 输出小写的 `no owners`，新版本已按大小写不敏感匹配。
+
+**Linux 提示「未找到 adb 可执行文件」**
+Linux 版不内置 adb，执行 `sudo apt install adb` 即可（deb 本身已声明该依赖），也可以在第一步手动指定 adb 路径。
+
+**Linux 找不到远程桌面客户端**
+执行 `sudo apt install tigervnc-viewer`。工具会在 `/usr/bin`、`/usr/local/bin`、`/snap/bin` 与 Flatpak 导出目录中
+查找 `vncviewer` / `xtigervncviewer`。
 
 ## 免责声明
 
