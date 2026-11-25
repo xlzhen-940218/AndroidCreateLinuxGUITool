@@ -4,12 +4,31 @@ use anyhow::{anyhow, bail, Result};
 use std::path::{Path, PathBuf};
 
 /// 工具自己的数据目录（存放解压出来的 adb、TigerVNC Viewer、APK 等）。
+///
+/// Windows 放在 `%LOCALAPPDATA%`，Linux 遵循 XDG 规范放在
+/// `$XDG_DATA_HOME`（默认 `~/.local/share`），macOS 放在 `~/Library/Application Support`。
 pub fn tool_data_dir() -> PathBuf {
-    std::env::var_os("LOCALAPPDATA")
-        .or_else(|| std::env::var_os("XDG_DATA_HOME"))
+    const APP_DIR: &str = "AndroidCreateLinuxGUITool";
+    if let Some(dir) = non_empty_env("LOCALAPPDATA") {
+        return dir.join(APP_DIR);
+    }
+    if let Some(dir) = non_empty_env("XDG_DATA_HOME") {
+        return dir.join(APP_DIR);
+    }
+    if let Some(home) = non_empty_env("HOME") {
+        return if cfg!(target_os = "macos") {
+            home.join("Library").join("Application Support").join(APP_DIR)
+        } else {
+            home.join(".local").join("share").join(APP_DIR)
+        };
+    }
+    std::env::temp_dir().join(APP_DIR)
+}
+
+fn non_empty_env(key: &str) -> Option<PathBuf> {
+    std::env::var_os(key)
+        .filter(|v| !v.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir)
-        .join("AndroidCreateLinuxGUITool")
 }
 
 /// 把内置资源写到数据目录，返回文件路径。

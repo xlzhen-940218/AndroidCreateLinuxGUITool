@@ -59,17 +59,19 @@ pub fn hide_console_std(cmd: &mut std::process::Command) {
 /// 随程序内置的 platform-tools（离线可用，无需用户自行安装 Android SDK）。
 ///
 /// adb.exe 运行时依赖同目录下的两个 DLL，所以三个文件要一起解压。
+/// 内置的只有 Windows 版；Linux 上交给发行版的 `adb` 包（deb 依赖里已声明）。
+#[cfg(windows)]
 const BUNDLED_ADB: &[u8] = include_bytes!("../resources/adb.exe");
+#[cfg(windows)]
 const BUNDLED_ADB_API: &[u8] = include_bytes!("../resources/AdbWinApi.dll");
+#[cfg(windows)]
 const BUNDLED_ADB_USB_API: &[u8] = include_bytes!("../resources/AdbWinUsbApi.dll");
 
 /// 把内置的 adb 解压到工具数据目录，返回 adb 可执行文件的路径。
 ///
 /// 已经解压过（且大小一致）时直接复用，不做任何写入。
+#[cfg(windows)]
 pub fn bundled_adb() -> Option<PathBuf> {
-    if !cfg!(windows) {
-        return None;
-    }
     let dir = crate::util::tool_data_dir().join("platform-tools");
     let exe = dir.join("adb.exe");
     let api = dir.join("AdbWinApi.dll");
@@ -90,6 +92,12 @@ pub fn bundled_adb() -> Option<PathBuf> {
     std::fs::write(&api, BUNDLED_ADB_API).ok()?;
     std::fs::write(&usb, BUNDLED_ADB_USB_API).ok()?;
     Some(exe)
+}
+
+/// 非 Windows 平台没有内置 adb，直接使用系统里安装的版本。
+#[cfg(not(windows))]
+pub fn bundled_adb() -> Option<PathBuf> {
+    None
 }
 
 /// ADB 调用器，绑定到一个可选的设备序列号。
@@ -188,16 +196,40 @@ impl Adb {
             candidates.push(root.join("platform-tools").join("adb"));
         }
 
+        // Linux 发行版的固定安装位置（deb 依赖里的 adb 包会装到 /usr/bin/adb）
+        #[cfg(target_os = "linux")]
+        {
+            for p in [
+                "/usr/bin/adb",
+                "/usr/local/bin/adb",
+                "/snap/bin/adb",
+                "/usr/lib/android-sdk/platform-tools/adb",
+                "/opt/android-sdk/platform-tools/adb",
+            ] {
+                candidates.push(PathBuf::from(p));
+            }
+            if let Some(home) = std::env::var_os("HOME") {
+                candidates.push(PathBuf::from(home).join(".local/bin/adb"));
+            }
+        }
+
         for cand in candidates {
             if cand.is_file() {
                 return Ok(cand);
             }
         }
 
-        bail!(
-            "未找到 adb 可执行文件。请安装 Android Platform Tools 并加入 PATH，\
-             或在设置中手动指定 adb.exe 的完整路径。"
-        )
+        if cfg!(windows) {
+            bail!(
+                "未找到 adb 可执行文件。请安装 Android Platform Tools 并加入 PATH，\
+                 或在设置中手动指定 adb.exe 的完整路径。"
+            );
+        } else {
+            bail!(
+                "未找到 adb 可执行文件。请先安装 adb（Debian/Ubuntu: sudo apt install adb），\
+                 或在设置中手动指定 adb 的完整路径。"
+            );
+        }
     }
 
     /// 执行一条 adb 子命令，返回完整结果。

@@ -21,3 +21,4 @@ target/
 
 # Debug / runtime logs
 *.log
+/release

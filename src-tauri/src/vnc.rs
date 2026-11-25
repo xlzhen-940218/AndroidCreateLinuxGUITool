@@ -30,6 +30,8 @@ const BUNDLED_AVNC_APK: &[u8] = include_bytes!("../resources/avnc.apk");
 /// 内置安装包对应的版本号，仅用于提示文案。
 const BUNDLED_AVNC_TAG: &str = "3.3.1";
 /// 随程序内置的 TigerVNC Viewer（官方免安装独立版 1.16.0，离线可用）。
+/// 内置的只有 Windows 版；Linux 交给发行版的 `tigervnc-viewer` 包（deb 依赖里已声明）。
+#[cfg(windows)]
 const BUNDLED_VIEWER: &[u8] = include_bytes!("../resources/vncviewer.exe");
 /// VNC 固定端口，与 `install-desktop.sh` 中的 `VNC_PORT` 保持一致。
 pub const VNC_PORT: u16 = 5901;
@@ -269,11 +271,15 @@ pub fn vnc_passwd_bytes(password: &str) -> [u8; 8] {
 /* ------------------------------ 客户端与密码 ------------------------------ */
 
 /// 把内置的 TigerVNC Viewer 解压到工具数据目录，返回可执行文件路径。
+#[cfg(windows)]
 pub fn bundled_viewer() -> Option<PathBuf> {
-    if !cfg!(windows) {
-        return None;
-    }
     util::write_bundled_file("vncviewer.exe", BUNDLED_VIEWER)
+}
+
+/// 非 Windows 平台没有内置 Viewer，使用系统里安装的版本。
+#[cfg(not(windows))]
+pub fn bundled_viewer() -> Option<PathBuf> {
+    None
 }
 
 /// 查找系统里已安装的 TigerVNC Viewer（不包含内置版本）。
@@ -299,6 +305,18 @@ fn find_installed_viewer() -> Option<PathBuf> {
         candidates.push(PathBuf::from(
             "/Applications/TigerVNC Community Edition.app/Contents/MacOS/vncviewer",
         ));
+    } else {
+        // Linux：Debian/Ubuntu 的 tigervnc-viewer 包同时提供 vncviewer 与 xtigervncviewer
+        for p in [
+            "/usr/bin/vncviewer",
+            "/usr/bin/xtigervncviewer",
+            "/usr/local/bin/vncviewer",
+            "/usr/local/bin/xtigervncviewer",
+            "/snap/bin/vncviewer",
+            "/var/lib/flatpak/exports/bin/com.tigervnc.vncviewer",
+        ] {
+            candidates.push(PathBuf::from(p));
+        }
     }
 
     if let Ok(path) = std::env::var("PATH") {
@@ -697,10 +715,15 @@ pub async fn setup_with(
             recovered.probe_detail = probe_detail;
             recovered.viewer_found = false;
             recovered.message = format!(
-                "未找到可用的 TigerVNC Viewer。\n\
-                 程序内置的客户端解压失败，也没有在系统里找到已安装版本。\n\
+                "未找到可用的 TigerVNC Viewer。\n{}\n\
                  也可以先在手机上使用 AVNC 连接（地址 127.0.0.1，端口 {}，密码 {}）。",
-                port, password
+                if cfg!(windows) {
+                    "程序内置的客户端解压失败，也没有在系统里找到已安装版本。"
+                } else {
+                    "请先安装 TigerVNC Viewer（Debian/Ubuntu: sudo apt install tigervnc-viewer）。"
+                },
+                port,
+                password
             );
             return Ok(recovered);
         }
