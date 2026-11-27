@@ -208,14 +208,23 @@ async fn start_relay_raw(
     guest_port: u16,
 ) -> Result<()> {
     stop_relay(adb, listen_port).await;
+    // Android 上 `nohup` 只是某些 shell 里的别名、实际命令并不存在；
+    // `setsid` 是真实存在的（/system/bin/setsid），用它把中继放进独立会话，
+    // adb shell 退出后进程仍然存活。没有 setsid 时退化为普通后台进程。
     let cmd = format!(
-        "nohup toybox nc -L -p {listen} toybox nc {ip} {guest} \
-         >/dev/null 2>&1 & echo started",
+        "if command -v setsid >/dev/null 2>&1; then \
+           setsid toybox nc -L -p {listen} toybox nc {ip} {guest} \
+             < /dev/null > /dev/null 2>&1 & \
+         else \
+           toybox nc -L -p {listen} toybox nc {ip} {guest} \
+             < /dev/null > /dev/null 2>&1 & \
+         fi; echo started",
         listen = listen_port,
         ip = guest_ip,
         guest = guest_port
     );
     adb.shell(&cmd).await?;
+    tokio::time::sleep(Duration::from_millis(600)).await;
     Ok(())
 }
 
@@ -310,7 +319,7 @@ pub async fn find_vnc_guest(adb: &Adb, port: u16) -> Result<String> {
 /// `pkill -f` 的模式里故意用 `[n]c`：正则 `[n]c` 能匹配进程参数里的 `nc`，
 /// 却不会匹配到执行这条命令的 shell 自己（它的命令行里是字面量 `[n]c`），
 /// 否则 pkill 会把当前 adb shell 一起杀掉。
-async fn stop_relay(adb: &Adb, port: u16) {
+pub async fn stop_relay(adb: &Adb, port: u16) {
     let _ = adb
         .shell(&format!("pkill -f \"[n]c -L -p {}\" 2>/dev/null", port))
         .await;

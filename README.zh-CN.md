@@ -46,7 +46,7 @@ Windows / Linux 图形界面 ──adb push──▶ 手机共享存储 ──vi
 | 7 | 桌面环境 | 安装所选桌面：XFCE（默认）、GNOME、KDE Plasma、MATE、Cinnamon、LXQt、LXDE、GNOME Flashback |
 | 8 | 常用软件 | 可选安装常用软件套件与 Fcitx5 中文输入法 |
 | 9 | VNC 服务 | 安装配置 TigerVNC、生成密码文件、在**独立显示号**（从 `:2` 起，避免和 Terminal 自带的 Weston/Xwayland `:1` 抢占）上启动 `acl-vnc.service`（端口 5901），并校验桌面会话确实接管 |
-| 10 | 桌面音频 | 检测虚拟机是否有真实扬声器；没有则配置 PulseAudio 串流，必要时自动建立手机端中继，并在手机上安装 Simple Protocol Player |
+| 10 | 桌面音频 | 修好 `/dev/snd` 权限，让虚拟机的 virtio-snd 声卡在桌面里正常出现；确实没有声卡时才退回 PulseAudio 串流 + 手机端中继 |
 | 11 | 远程桌面（可直达） | 建立手机端中继、`adb forward`、完成 VNC 密码握手，打开 TigerVNC 查看器（Windows 内置、Linux 使用系统包、macOS 用系统「屏幕共享」）；VNC 服务没起来时会自动重启；也可为手机安装 AVNC |
 
 第 6–9 步就是原来单一的「安装桌面环境」，拆开之后每一步都更短、可单独重跑、也更容易定位问题。
@@ -85,13 +85,16 @@ Windows / Linux 图形界面 ──adb push──▶ 手机共享存储 ──vi
 
 ### 第 10 步说明（桌面音频）
 
-- 虚拟机里已有真实扬声器时，桌面声音直接由手机播放，工具只会做检测。
-- 没有扬声器时，工具会启动 PulseAudio 并把 `module-simple-protocol-tcp` 写入 `default.pa`，
-  然后安装并打开 Simple Protocol Player，自动填好地址与端口并开始串流。
-- 如果手机无法直连虚拟机的音频端口，工具会自动在手机上建立 `nc` 中继，让播放器改连
-  `127.0.0.1`，不需要手动处理网络。后续想再听一次时，点「打开播放器」即可。
-- 第二次使用时会先直接探测 12345 端口是否已经在输出 PCM；是的话完全跳过虚拟机终端，
-  通常 2 秒内就能确认状态。
+- Linux 虚拟机里本来就有声卡（`virtio-snd`，`/proc/asound/cards` 里的 `VirtIO SoundCard`），
+  但 `/dev/snd/*` 默认是 `root:audio 0660`，桌面用户不在 `audio` 组时打不开它，
+  WirePlumber 就不会创建 sink——这正是 VNC 桌面里“一个音频设备都检测不到”的原因。
+- 工具会写入 `/etc/udev/rules.d/60-avf-audio.rules`（`SUBSYSTEM=="sound", MODE="0666"`）并立即改一次权限，
+  再让 WirePlumber 重新扫描设备。之后桌面里会出现真实的输出设备
+  **Virtio 1.0 sound Stereo**，声音由手机扬声器直接播放，不需要串流。
+- 只有在确实没有声卡、又拿不到权限时，才退回网络串流：创建虚拟输出 **AVF Audio**（`avf_speaker`），
+  用 `module-simple-protocol-tcp` 采集它的 monitor，播放器连接 `127.0.0.1:12345`，
+  再由手机端 `nc` 中继转发到虚拟机（中继用 `setsid` 启动，adb shell 退出后依然存活）。
+- 恢复真实声卡后，工具会自动卸载之前的虚拟输出与串流模块，并把手机上残留的中继关掉。
 
 ### 第 11 步说明（远程桌面）
 

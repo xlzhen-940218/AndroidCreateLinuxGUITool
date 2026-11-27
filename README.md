@@ -47,7 +47,7 @@ executes it in the Terminal app. Progress (`@@STEP:` / `@@RESULT:`) and failures
 | 7 | Desktop environment | Installs the desktop you pick: XFCE (default), GNOME, KDE Plasma, MATE, Cinnamon, LXQt, LXDE, GNOME Flashback |
 | 8 | Common apps | Optional app suite and the Fcitx5 Chinese input method |
 | 9 | VNC service | Installs and configures TigerVNC, writes the password file, starts the `acl-vnc.service` session on a dedicated display (`:2`+, so it never competes with the Terminal's Weston/Xwayland `:1`) on port 5901, and verifies the desktop session actually took over |
-| 10 | Desktop audio | Detects whether the VM has a real speaker; otherwise configures PulseAudio streaming, adds a phone-side relay when needed, and installs the Simple Protocol Player on the phone |
+| 10 | Desktop audio | Fixes `/dev/snd` permissions so the VM's virtio-snd card shows up in the desktop; falls back to PulseAudio streaming + phone-side relay only when there is no sound card |
 | 11 | Remote desktop (shortcut) | Starts the phone-side relay, runs `adb forward`, verifies the VNC password handshake, opens the viewer (bundled TigerVNC on Windows, system package on Linux, macOS Screen Sharing by default), and can install AVNC on the phone. If the VNC service was stopped, it is restarted automatically |
 
 Stages 6–9 are the old single "install desktop" step, split so each one is short, restartable and easy to debug.
@@ -87,11 +87,19 @@ locale and input method; choosing "no" keeps the official Debian sources and an 
 
 ### Steps 10–11 notes
 
-- **Desktop audio:** if the VM has a real speaker, nothing needs to be done. Otherwise the tool loads
-  `module-simple-protocol-tcp`, writes it to `default.pa`, installs/opens Simple Protocol Player, fills in
-  the address and starts streaming automatically. If the phone cannot reach the VM directly, a phone-side
-  `nc` relay is created automatically (the player then connects to `127.0.0.1`). On later runs it probes
-  whether port 12345 is already delivering PCM and skips the VM terminal entirely — usually under two seconds.
+- **Desktop audio:** the VM does have a sound card (`virtio-snd`, shown as `VirtIO SoundCard` in
+  `/proc/asound/cards`), but `/dev/snd/*` is `root:audio 0660` by default. A desktop user outside the
+  `audio` group cannot open it, so WirePlumber never creates a sink — that is why the VNC desktop showed
+  no audio device at all.
+- The tool writes `/etc/udev/rules.d/60-avf-audio.rules` (`SUBSYSTEM=="sound", MODE="0666"`), fixes the
+  current permissions and asks WirePlumber to rescan. The desktop then lists the real
+  **Virtio 1.0 sound Stereo** output and the phone plays it directly; no streaming is involved.
+- Only when there is genuinely no sound card (or no permission to fix it) does it fall back to network
+  streaming: a virtual output **AVF Audio** (`avf_speaker`) is created, `module-simple-protocol-tcp` captures
+  its monitor, and the player connects to `127.0.0.1:12345` through a phone-side `nc` relay (started with
+  `setsid`, so it survives the adb shell exiting).
+- Once the real card is available again, the tool unloads the old virtual output/streaming module and stops
+  the leftover relay.
 - **Remote desktop:** the top bar and sidebar both have a shortcut that jumps straight to this step and connects
   immediately. "Allow port and open TigerVNC" first checks whether port 5901 is already served, otherwise starts a phone-side
   `nc` relay on a separate phone port (for example 15901) and maps PC `5901` to it with `adb forward`. This bypasses

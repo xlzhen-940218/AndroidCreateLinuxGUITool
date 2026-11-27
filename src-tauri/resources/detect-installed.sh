@@ -68,14 +68,22 @@ SSH=0
 if has openssh-server; then SSH=1; fi
 
 # ---- 桌面音频 ----
-# auto_null 是 PulseAudio 的空输出设备：声音进了它不会有任何硬件发声，
-# 说明虚拟机里没有可用的扬声器，需要走音频串流。
+# auto_null 是 PulseAudio 的空输出设备；avf_speaker 是本工具创建的虚拟输出。
+# 真正的声卡是 virtio-snd（名字形如 alsa_output.platform-...），
+# 只有 /dev/snd 对桌面用户可读时 WirePlumber 才会把它暴露出来。
 AUDIO_SINK=0
 AUDIO_SINK_NAME=""
 if command -v pactl > /dev/null 2>&1; then
-    AUDIO_SINK_NAME="$(pactl list short sinks 2>/dev/null | awk 'NR==1 {print $2}')"
-    if [ -n "$AUDIO_SINK_NAME" ] && [ "$AUDIO_SINK_NAME" != "auto_null" ]; then
+    AUDIO_SINK_NAME="$(pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -v '^auto_null$' | head -n1)"
+    if [ -z "$AUDIO_SINK_NAME" ]; then
+        AUDIO_SINK_NAME="$(pactl list short sinks 2>/dev/null | awk 'NR==1 {print $2}')"
+    fi
+    if [ -n "$AUDIO_SINK_NAME" ] && [ "$AUDIO_SINK_NAME" != "auto_null" ] && [ "$AUDIO_SINK_NAME" != "avf_speaker" ]; then
         AUDIO_SINK=1
+        # 用友好描述展示，避免界面上出现一长串 alsa_output.platform-…
+        AUDIO_SINK_DESC="$(pactl list sinks 2>/dev/null | grep -F -A1 "Name: $AUDIO_SINK_NAME" \
+            | sed -n 's/^[^D]*Description: //p' | head -n1)"
+        [ -n "$AUDIO_SINK_DESC" ] && AUDIO_SINK_NAME="$AUDIO_SINK_DESC"
     fi
 fi
 AUDIO_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"

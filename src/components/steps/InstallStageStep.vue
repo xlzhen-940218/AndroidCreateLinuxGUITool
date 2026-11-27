@@ -145,9 +145,13 @@ const {
                 : t("common.notRunning")
           }}
         </span>
-        <span :class="installed.audioSink ? 'ok' : 'miss'">
+        <span :class="installed.audioSinkName && installed.audioSinkName !== 'auto_null' ? 'ok' : 'miss'">
           {{ t("audio.speakerLabel") }}：{{
-            installed.audioSink ? installed.audioSinkName : t("audio.noSpeaker")
+            installed.audioSinkName && installed.audioSinkName !== "auto_null"
+              ? installed.audioSink
+                ? installed.audioSinkName
+                : t("audio.virtualSink", { name: installed.audioSinkName })
+              : t("common.notDetected")
           }}
         </span>
       </div>

@@ -909,8 +909,8 @@ async function installAvnc() {
 /**
  * 配置桌面音频。
  *
- * 虚拟机里已经有扬声器时直接返回；否则用 PulseAudio 把桌面的声音推到
- * 手机上的 Simple Protocol Player，并把地址与端口自动填好。
+ * 优先修好 /dev/snd 权限，让虚拟机自带的 virtio-snd 声卡出现在桌面里；
+ * 确实没有声卡时才退回 PulseAudio 串流 + 手机上的 Simple Protocol Player。
  */
 async function setupAudio() {
   busy.value = true;

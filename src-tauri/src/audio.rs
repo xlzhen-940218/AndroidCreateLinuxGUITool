@@ -95,65 +95,147 @@ impl AudioReport {
     }
 }
 
-/// 在虚拟机里执行：检测输出设备 → 必要时配置串流模块 → 回读状态。
+/// 在虚拟机里执行：检测声卡 → 必要时配置虚拟输出/串流 → 回读状态。
 ///
 /// 返回的文本里带有 `AUDIO_*` 的键值行。
+///
+/// 关键点：AVF 虚拟机里其实是**有**声卡（`virtio-snd`，`/proc/asound/cards`
+/// 里的 `VirtIO SoundCard`），但 `/dev/snd/*` 默认是 `root:audio 0660`，
+/// 桌面用户不在 `audio` 组时打不开设备，WirePlumber 就不会创建 sink，
+/// 于是在 VNC 桌面里“一个音频设备都检测不到”。所以这里先修权限，再找声卡。
 const GUEST_AUDIO_SCRIPT: &str = r#"
 AUDIO_PORT=12345
 AUDIO_RATE=44100
 AUDIO_CHANNELS=2
 MODULE_NAME="module-simple-protocol-tcp"
-MODULE_ARGS="$MODULE_NAME rate=$AUDIO_RATE format=s16le channels=$AUDIO_CHANNELS source=@DEFAULT_SINK@.monitor record=true port=$AUDIO_PORT"
+VIRTUAL_SINK="avf_speaker"
+MODULE_ARGS="$MODULE_NAME rate=$AUDIO_RATE format=s16le channels=$AUDIO_CHANNELS source=$VIRTUAL_SINK.monitor record=true port=$AUDIO_PORT"
 
 # 精简的 Debian 镜像有时没有设置 XDG_RUNTIME_DIR，pactl 会直接连不上总线。
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
 
-# PulseAudio 是串流的前提；没有就先装上。
+# 真实声卡：既不是 auto_null，也不是本工具创建的虚拟输出。
+real_sink() {
+  pactl list short sinks 2>/dev/null \
+    | awk '{print $2}' \
+    | grep -v -E '^(auto_null|avf_speaker)$' \
+    | head -n1
+}
+
+# 让桌面用户能读写 /dev/snd：加 udev 规则（重启后依然有效）+ 立刻改一次权限。
+ensure_snd_access() {
+  [ -d /dev/snd ] || return 1
+  RULE=/etc/udev/rules.d/60-avf-audio.rules
+  if [ ! -f "$RULE" ] && command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    printf 'SUBSYSTEM=="sound", MODE="0666"\n' | sudo -n tee "$RULE" >/dev/null 2>&1
+    sudo -n udevadm control --reload-rules >/dev/null 2>&1
+    sudo -n udevadm trigger --subsystem-match=sound --action=change >/dev/null 2>&1
+  fi
+  [ -r /dev/snd/controlC0 ] && [ -w /dev/snd/controlC0 ] && return 0
+  command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1 || return 1
+  sudo -n chmod 666 /dev/snd/* >/dev/null 2>&1
+  [ -r /dev/snd/controlC0 ]
+}
+
+# 音频服务：新版镜像用 PipeWire（pactl 连的是 pipewire-pulse），旧镜像用 PulseAudio。
+start_audio_server() {
+  pactl info >/dev/null 2>&1 && return 0
+  systemctl --user start pipewire wireplumber pipewire-pulse >/dev/null 2>&1 || true
+  n=0
+  while [ "$n" -lt 8 ]; do
+    pactl info >/dev/null 2>&1 && return 0
+    n=$((n+1))
+    sleep 0.5
+  done
+  pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+  n=0
+  while [ "$n" -lt 10 ]; do
+    pactl info >/dev/null 2>&1 && return 0
+    n=$((n+1))
+    sleep 0.5
+  done
+  return 1
+}
+
+# pactl 是检测和配置的基础；没有就先装上。
 if ! command -v pactl >/dev/null 2>&1; then
   if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
     sudo -n env DEBIAN_FRONTEND=noninteractive apt-get -y install pulseaudio pulseaudio-utils >/dev/null 2>&1
   fi
 fi
 
-# PulseAudio 没在运行时就先拉起来，否则后面的 load-module 一定失败。
-if command -v pactl >/dev/null 2>&1 && ! pactl info >/dev/null 2>&1; then
-  pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+ensure_snd_access || true
+start_audio_server || true
+
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+REAL="$(real_sink)"
+
+# 权限刚放开时 WirePlumber 已经错过了设备，让它重新扫描一次。
+if [ -z "$REAL" ] && grep -qv 'no soundcards' /proc/asound/cards 2>/dev/null; then
+  systemctl --user restart wireplumber >/dev/null 2>&1 || true
   n=0
-  while [ "$n" -lt 10 ]; do
-    pactl info >/dev/null 2>&1 && break
+  while [ "$n" -lt 12 ]; do
+    REAL="$(real_sink)"
+    [ -n "$REAL" ] && break
     n=$((n+1))
     sleep 0.5
   done
 fi
 
-SINK_NAME="$(pactl list short sinks 2>/dev/null | awk 'NR==1 {print $2}')"
-IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-
-# auto_null 是 PulseAudio 的空输出设备：声音进了它不会有任何硬件发声，
-# 说明虚拟机里没有可用的扬声器，需要走串流。
 SINK=0
-if [ -n "$SINK_NAME" ] && [ "$SINK_NAME" != "auto_null" ]; then SINK=1; fi
-
 MODULE=0
 LISTEN=0
-if [ "$SINK" = "0" ]; then
-  mkdir -p "$HOME/.config/pulse" 2>/dev/null || true
+SINK_NAME="$REAL"
+
+if [ -n "$REAL" ]; then
+  # 有真实声卡：直接用，声音由 Terminal 应用（virtio-snd 后端）从手机扬声器放出来。
+  SINK=1
+  # 用更友好的设备描述（如 "Virtio 1.0 sound Stereo"）展示给用户
+  DESC="$(pactl list sinks 2>/dev/null | grep -F -A1 "Name: $REAL" \
+    | sed -n 's/^[^D]*Description: //p' | head -n1)"
+  [ -n "$DESC" ] && SINK_NAME="$DESC"
+  pactl set-default-sink "$REAL" >/dev/null 2>&1 || true
+  pactl set-sink-mute "$REAL" 0 >/dev/null 2>&1 || true
+  pactl set-sink-volume "$REAL" 100% >/dev/null 2>&1 || true
+
+  # 之前为串流准备的虚拟输出和模块已经没用了，卸掉，免得桌面上多一个假设备。
+  for id in $(pactl list short modules 2>/dev/null | grep "$MODULE_NAME" | awk '{print $1}'); do
+    pactl unload-module "$id" >/dev/null 2>&1 || true
+  done
+  for id in $(pactl list short modules 2>/dev/null | grep "sink_name=$VIRTUAL_SINK" | awk '{print $1}'); do
+    pactl unload-module "$id" >/dev/null 2>&1 || true
+  done
   PA="$HOME/.config/pulse/default.pa"
-  # 写进 default.pa：桌面会话（以及以后每次登录）启动 PulseAudio 时自动加载。
-  if ! grep -q "$MODULE_NAME" "$PA" 2>/dev/null; then
-    echo "load-module $MODULE_ARGS" >> "$PA" 2>/dev/null || true
+  if [ -f "$PA" ]; then
+    grep -v -E "module-simple-protocol-tcp|sink_name=$VIRTUAL_SINK|set-default-sink $VIRTUAL_SINK" \
+      "$PA" > "$PA.acl.tmp" 2>/dev/null && mv "$PA.acl.tmp" "$PA" 2>/dev/null
   fi
+else
   if pactl info >/dev/null 2>&1; then
-    # 上一轮可能已经加载过，避免重复 load-module。
-    if pactl list short modules 2>/dev/null | grep -q "$MODULE_NAME"; then
+    # 桌面里必须有一个看得见的输出设备，否则音频设置里是空的。
+    # 没有真实声卡时创建 "AVF Audio" 虚拟输出，并把默认输出切过去。
+    if ! pactl list short sinks 2>/dev/null | awk '{print $2}' | grep -qx "$VIRTUAL_SINK"; then
+      pactl load-module module-null-sink sink_name=$VIRTUAL_SINK \
+        sink_properties=device.description=AVF_Audio >/dev/null 2>&1 || true
+    fi
+    pactl set-default-sink "$VIRTUAL_SINK" >/dev/null 2>&1 || true
+    pactl set-sink-volume "$VIRTUAL_SINK" 100% >/dev/null 2>&1 || true
+    pactl set-sink-mute "$VIRTUAL_SINK" 0 >/dev/null 2>&1 || true
+    SINK_NAME="$VIRTUAL_SINK"
+
+    # 已加载的模块如果还指向旧的 auto_null，就换成虚拟输出的 monitor。
+    if pactl list short modules 2>/dev/null | grep "$MODULE_NAME" | grep -q "$VIRTUAL_SINK.monitor"; then
       MODULE=1
-    elif pactl load-module $MODULE_ARGS >/dev/null 2>&1; then
-      MODULE=1
+    else
+      for id in $(pactl list short modules 2>/dev/null | grep "$MODULE_NAME" | awk '{print $1}'); do
+        pactl unload-module "$id" >/dev/null 2>&1 || true
+      done
+      pactl load-module $MODULE_ARGS >/dev/null 2>&1 && MODULE=1
     fi
   fi
-  # 没有正在运行的 PulseAudio 服务端时，default.pa 里的配置会在进桌面时生效。
-  if grep -q "$MODULE_NAME" "$PA" 2>/dev/null; then MODULE=1; fi
-  if (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":$AUDIO_PORT "; then
+
+  if [ "$MODULE" = "1" ] && (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":$AUDIO_PORT "; then
     LISTEN=1
   fi
 fi
@@ -207,124 +289,117 @@ pub fn parse_audio_output(content: &str) -> AudioReport {
     r
 }
 
-/// 音频串流端口是否已经在持续输出 PCM。
-///
-/// 这个探测**不依赖虚拟机终端**：只要能从手机侧读到至少 1 个字节，
-/// 就说明模块已经加载并在推流（PulseAudio 即使静音也会持续发送静音帧）。
-async fn audio_port_alive(adb: &Adb, host: &str, port: u16) -> bool {
-    let out = adb
-        .shell(&format!(
-            "toybox timeout 2 toybox nc {host} {port} < /dev/null 2>/dev/null | head -c 1 | wc -c",
-            host = host,
-            port = port
-        ))
-        .await
-        .unwrap_or_default();
-    out.trim() == "1"
-}
-
-/// 从手机侧快速找到虚拟机地址（只读，不唤醒终端）。
-async fn find_guest_ip(adb: &Adb) -> Option<String> {
-    let neigh = adb
-        .shell("ip neigh show 2>/dev/null | grep avf_tap")
-        .await
-        .ok()?;
-    let mut ips: Vec<String> = Vec::new();
-    for line in neigh.lines() {
-        if let Some(ip) = line.split_whitespace().next() {
-            // 只保留 IPv4
-            if ip.contains('.') && !ips.iter().any(|x| x == ip) {
-                ips.push(ip.to_string());
-            }
-        }
-    }
-    for ip in &ips {
-        // STALE 条目先 ping 一下，避免地址已失效
-        let _ = adb
-            .shell(&format!("ping -c 1 -W 1 {} >/dev/null 2>&1", ip))
-            .await;
-        if audio_port_alive(adb, ip, AUDIO_PORT).await {
-            return Some(ip.clone());
+/// 在手机上找到一个正在监听的音频中继端口。
+async fn find_relay_port(adb: &Adb) -> Option<u16> {
+    for offset in 0..10u16 {
+        let port = AUDIO_PORT.saturating_add(offset);
+        if relay::device_listens(adb, port).await {
+            return Some(port);
         }
     }
     None
 }
 
-/// 快速路径：串流端口已经在输出 PCM，说明桌面端配置早就完成了。
+/// 播放器是否已经通过中继建立了连接。
 ///
-/// 常见情况下（例如第二次打开工具）完全不需要执行虚拟机脚本，
-/// 避免因为 Terminal 自动化而等待几十秒。
+/// 纯被动检查（读 `netstat`），不会像端口探测那样额外建连接；
+/// 音频模块同一时间只服务一个客户端，主动探测会打扰正在播放的播放器。
+async fn player_connected(adb: &Adb, port: u16) -> bool {
+    let out = adb
+        .shell(&format!(
+            "toybox netstat -tn 2>/dev/null | grep ESTABLISHED | grep -q ':{port} '; echo $?",
+            port = port
+        ))
+        .await
+        .unwrap_or_default();
+    out.trim() == "0"
+}
+
+/// 从手机侧读取虚拟机地址（只读，不探测端口）。
+async fn find_guest_ip(adb: &Adb) -> Option<String> {
+    let neigh = adb
+        .shell("ip neigh show 2>/dev/null | grep avf_tap")
+        .await
+        .ok()?;
+    neigh.lines().find_map(|line| {
+        let ip = line.split_whitespace().next()?;
+        if ip.contains('.') {
+            Some(ip.to_string())
+        } else {
+            None
+        }
+    })
+}
+
+/// 快速路径：手机上已经有音频中继在监听，说明之前已经配置过。
+///
+/// 只做被动检查：看中继端口是否在监听、播放器是否已连上，
+/// 绝不额外建立探测连接，避免把正在串流的播放器挤掉。
 async fn quick_report(adb: &Adb) -> Option<AudioReport> {
-    let ip = find_guest_ip(adb).await?;
+    let port = find_relay_port(adb).await?;
     let mut report = AudioReport::base();
-    report.guest_ip = ip.clone();
-    report.connect_host = ip;
+    report.guest_ip = find_guest_ip(adb).await.unwrap_or_default();
+    report.connect_host = "127.0.0.1".to_string();
+    report.connect_port = port;
     report.port = AUDIO_PORT;
-    report.connect_port = AUDIO_PORT;
     report.module_ready = true;
     report.reachable = true;
-    // 串流场景下输出设备就是 PulseAudio 的空设备
-    report.sink_name = "auto_null".to_string();
+    report.via_relay = true;
+    report.streaming = player_connected(adb, port).await;
+    // 串流场景下输出设备是本工具创建的虚拟声卡
+    report.sink_name = "avf_speaker".to_string();
     Some(report)
 }
 
-/// 把地址与端口自动填进播放器界面。
+/// 把地址与端口自动填进播放器界面，返回是否**真的**填对。
 ///
-/// 播放器把地址存在 SharedPreferences 里（不读 intent extras），
-/// 所以只能直接往输入框里打字。已经填对时不做任何操作，避免打断用户。
+/// 播放器把地址存在 SharedPreferences 里（不读 intent extras），只能往输入框打字。
+/// 输入框是 AutoCompleteTextView，Ctrl+A 在部分输入法下不生效，
+/// 所以这里用「移到行尾 + 连续退格」清空，写完再 dump 一次校验真实值。
 async fn prefill_player_fields(adb: &Adb, ip: &str, port: u16) -> bool {
     use crate::uia;
 
-    let nodes = match uia::dump(adb).await {
-        Ok(n) => n,
-        Err(_) => return false,
-    };
-    let ip_node = uia::find_by_id(&nodes, "editTextIpAddr").cloned();
-    let port_node = uia::find_by_id(&nodes, "editTextAudioPort").cloned();
-
-    let ip_ok = ip_node
-        .as_ref()
-        .map(|n| n.text.trim() == ip)
-        .unwrap_or(false);
-    let port_ok = port_node
-        .as_ref()
-        .map(|n| n.text.trim() == port.to_string())
-        .unwrap_or(false);
-    if ip_ok && port_ok {
-        return true;
-    }
-
-    if !ip_ok {
-        let Some(node) = ip_node else {
+    async fn set_field(adb: &Adb, id: &str, value: &str) -> bool {
+        let Ok(nodes) = uia::dump(adb).await else {
             return false;
         };
-        if uia::tap_node(adb, &node).await.is_err() {
+        let Some(node) = uia::find_by_id(&nodes, id) else {
             return false;
+        };
+        if node.text.trim() == value {
+            return true;
         }
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        // 全选后删除，避免和新值拼在一起
-        let _ = adb.raw(&["shell", "input", "keycombination", "113", "29"]).await;
-        let _ = adb.raw(&["shell", "input", "keyevent", "67"]).await;
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-        if uia::type_text(adb, ip).await.is_err() {
+        if uia::tap_node(adb, node).await.is_err() {
             return false;
         }
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        // MOVE_END 后连按退格清空：IP 最长 15 位、端口 5 位，24 次足够。
+        let _ = adb
+            .shell("input keyevent 123; for i in $(seq 1 24); do input keyevent 67; done")
+            .await;
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        if uia::type_text(adb, value).await.is_err() {
+            return false;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+
+        let Ok(nodes) = uia::dump(adb).await else {
+            return false;
+        };
+        uia::find_by_id(&nodes, id)
+            .map(|n| n.text.trim() == value)
+            .unwrap_or(false)
     }
 
-    if !port_ok {
-        let nodes = uia::dump(adb).await.unwrap_or_default();
-        if let Some(node) = uia::find_by_id(&nodes, "editTextAudioPort") {
-            if uia::tap_node(adb, node).await.is_ok() {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                let _ = adb.raw(&["shell", "input", "keycombination", "113", "29"]).await;
-                let _ = adb.raw(&["shell", "input", "keyevent", "67"]).await;
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-                let _ = uia::type_text(adb, &port.to_string()).await;
-            }
-        }
+    let ip_ok = set_field(adb, "editTextIpAddr", ip).await;
+    // 收起软键盘，避免它挡住下面的端口输入框
+    if ip_ok {
+        let _ = adb.shell("input keyevent 4").await;
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     }
-    true
+    let port_ok = set_field(adb, "editTextAudioPort", &port.to_string()).await;
+    let _ = adb.shell("input keyevent 4").await;
+    ip_ok && port_ok
 }
 
 /// 点一下「开始串流」；如果已经在串流则直接返回成功。
@@ -382,84 +457,96 @@ async fn ensure_player(
     Ok((installed, launched, prefilled, streaming))
 }
 
-/// 播放器当前是否处于串流状态（仅当它在前台时有效）。
-async fn player_is_streaming(adb: &Adb) -> bool {
-    use crate::uia;
-
-    let Ok(nodes) = uia::dump(adb).await else {
-        return false;
-    };
-    uia::find_by_id(&nodes, "stopButton")
-        .map(|n| n.enabled)
-        .unwrap_or(false)
-}
-
 /// 检测虚拟机的音频情况（只读，不改动系统）。
 pub async fn detect(adb: &Adb) -> Result<AudioReport> {
-    // 快速路径：端口已经在推流 → 直接返回，不唤醒终端。
+    // 快速路径：中继在监听且播放器真的连上了 → 确实在串流，不必唤醒终端。
+    // 只监听、没有播放器连接的中继可能是旧版本留下的，继续往下问虚拟机。
     if let Some(mut report) = quick_report(adb).await {
-        report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
-        report.streaming = report.player_installed && player_is_streaming(adb).await;
-        report.message = describe(&report);
-        return Ok(report);
+        if report.streaming {
+            report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
+            report.message = describe(&report);
+            return Ok(report);
+        }
     }
 
     let out = crate::installer::guest_exec(adb, GUEST_AUDIO_SCRIPT).await?;
     let mut report = parse_audio_output(&out);
     report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
 
-    if !report.has_speaker && report.module_ready {
-        let direct = audio_port_alive(adb, &report.guest_ip, report.port).await;
-        // 直连不通时看看上一轮是否留下了手机端中继。
-        if !direct
-            && relay::device_listens(adb, report.port).await
-            && relay::tcp_connect_ok(adb, "127.0.0.1", report.port).await
-        {
+    if report.has_speaker {
+        // 真实声卡可用；把旧版本留下的串流中继清掉。
+        stop_audio_relays(adb).await;
+        report.reachable = true;
+        report.message = describe(&report);
+        return Ok(report);
+    }
+
+    if report.module_ready {
+        // 优先复用手机端中继；没有中继时按直连处理（模块已在监听）。
+        if let Some(port) = find_relay_port(adb).await {
             report.via_relay = true;
             report.connect_host = "127.0.0.1".to_string();
-            report.connect_port = report.port;
-            report.reachable = true;
+            report.connect_port = port;
+            report.streaming = player_connected(adb, port).await;
         } else {
-            report.reachable = direct;
+            report.connect_host = report.guest_ip.clone();
+            report.connect_port = report.port;
         }
+        report.reachable = true;
     }
 
     report.message = describe(&report);
     Ok(report)
 }
 
-/// 配置音频串流：虚拟机端配好模块，手机端装好播放器并填好地址。
+/// 关掉本工具之前为音频串流拉起的手机端中继。
+///
+/// 真实声卡可用后这些中继就没用了，留着会让「检测」误以为还在串流。
+async fn stop_audio_relays(adb: &Adb) {
+    for offset in 0..10u16 {
+        let port = AUDIO_PORT.saturating_add(offset);
+        if relay::device_listens(adb, port).await {
+            relay::stop_relay(adb, port).await;
+        }
+    }
+}
+
+/// 配置桌面音频：优先启用虚拟机自带的声卡，没有才退回串流。
 pub async fn setup(
     adb: &Adb,
     progress: &mut (dyn FnMut(String) + Send),
 ) -> Result<AudioReport> {
-    // 快速路径：桌面端已经在推流，跳过所有终端操作，直接把播放器拉起来。
-    if let Some(mut report) = quick_report(adb).await {
-        progress(format!(
-            "桌面音频串流已在 {}:{} 运行，无需重新配置。",
-            report.guest_ip, report.port
-        ));
-        let (installed, launched, prefilled, streaming) =
-            ensure_player(adb, &report.connect_host, report.connect_port, progress).await?;
-        report.player_installed = installed;
-        report.player_launched = launched;
-        report.prefilled = prefilled;
-        report.streaming = streaming;
-        report.message = describe(&report);
-        return Ok(report);
-    }
-
     progress("正在检查桌面音频输出设备…".to_string());
-    let out = crate::installer::guest_exec(adb, GUEST_AUDIO_SCRIPT).await?;
+    // 以虚拟机里的真实状态为准：之前的中继可能已经过时（例如声卡权限修好了）。
+    let out = match crate::installer::guest_exec(adb, GUEST_AUDIO_SCRIPT).await {
+        Ok(o) => o,
+        Err(e) => {
+            // 终端不可用时，沿用上一次已经建好的中继，至少能把播放器拉起来。
+            if let Some(mut report) = quick_report(adb).await {
+                progress(format!("无法读取虚拟机状态（{}），沿用已有中继。", e));
+                let (installed, launched, prefilled, streaming) =
+                    ensure_player(adb, &report.connect_host, report.connect_port, progress).await?;
+                report.player_installed = installed;
+                report.player_launched = launched;
+                report.prefilled = prefilled;
+                report.streaming = streaming;
+                report.message = describe(&report);
+                return Ok(report);
+            }
+            return Err(e);
+        }
+    };
     let mut report = parse_audio_output(&out);
 
     if report.has_speaker {
         progress(format!(
-            "桌面自带扬声器（{}），无需音频串流。",
+            "桌面已检测到声卡（{}），声音由手机直接播放。",
             report.sink_name
         ));
-        report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
         report.reachable = true;
+        // 之前为串流准备的虚拟输出已经卸载，顺手把手机上残留的中继也关掉。
+        stop_audio_relays(adb).await;
+        report.player_installed = apk::installed(adb, PLAYER_PACKAGE).await;
         report.message = describe(&report);
         return Ok(report);
     }
@@ -474,8 +561,11 @@ pub async fn setup(
              请在虚拟机终端里手动执行：\n  \
              export XDG_RUNTIME_DIR=${{XDG_RUNTIME_DIR:-/run/user/$(id -u)}}\n  \
              pulseaudio --start --exit-idle-time=-1\n  \
+             pactl load-module module-null-sink sink_name=avf_speaker \
+             sink_properties=device.description=AVF_Audio\n  \
+             pactl set-default-sink avf_speaker\n  \
              pactl load-module module-simple-protocol-tcp rate=44100 format=s16le channels=2 \
-             source=@DEFAULT_SINK@.monitor record=true port=12345"
+             source=avf_speaker.monitor record=true port=12345"
         );
     }
 
@@ -484,25 +574,29 @@ pub async fn setup(
         report.guest_ip, report.port
     ));
 
-    // 选择播放器实际连接的地址：优先直连，直连不通再走手机端中继。
-    report.connect_host = report.guest_ip.clone();
-    report.connect_port = report.port;
-    report.via_relay = false;
-    report.reachable = audio_port_alive(adb, &report.guest_ip, report.port).await;
-    if !report.reachable {
-        progress("手机无法直连虚拟机的音频端口，正在建立手机端中继…".to_string());
-        match relay::open_port_relay(adb, report.port, &report.guest_ip, report.port).await {
-            Ok(port) => {
-                report.via_relay = true;
-                report.connect_host = "127.0.0.1".to_string();
-                report.connect_port = port;
-                report.reachable = true;
-                progress(format!(
-                    "手机已在 :{} 监听，并转发到虚拟机音频端口 {}。",
-                    port, report.port
-                ));
-            }
-            Err(e) => progress(format!("手机端音频中继没有建立成功：{}", e)),
+    // 音频模块同一时间只服务一个客户端，统一走手机端中继：
+    // 播放器连 127.0.0.1，中继再连虚拟机，避免直连探测和播放器抢连接。
+    match relay::open_port_relay(adb, report.port, &report.guest_ip, report.port).await {
+        Ok(port) => {
+            report.via_relay = true;
+            report.connect_host = "127.0.0.1".to_string();
+            report.connect_port = port;
+            report.reachable = true;
+            progress(format!(
+                "手机已在 :{} 监听，并转发到虚拟机音频端口 {}。",
+                port, report.port
+            ));
+        }
+        Err(e) => {
+            // 中继失败时退回直连；模块本身已经在监听。
+            report.via_relay = false;
+            report.connect_host = report.guest_ip.clone();
+            report.connect_port = report.port;
+            report.reachable = true;
+            progress(format!(
+                "手机端中继没有建立成功，将直接连接虚拟机：{}",
+                e
+            ));
         }
     }
 
@@ -531,7 +625,8 @@ pub async fn open_player(
     report.connect_host = host.to_string();
     report.connect_port = port;
     report.port = port;
-    report.reachable = audio_port_alive(adb, host, port).await;
+    // 地址来自上一次成功的配置，直接信任，避免再建探测连接。
+    report.reachable = true;
 
     let (installed, launched, prefilled, streaming) =
         ensure_player(adb, host, port, progress).await?;
@@ -559,7 +654,8 @@ pub async fn open_player(
 fn describe(r: &AudioReport) -> String {
     if r.has_speaker {
         return format!(
-            "桌面自带扬声器（{}），声音直接由手机播放，不需要额外操作。",
+            "桌面已检测到声卡（{}），声音由手机扬声器直接播放，不需要串流。\n\
+             如果没声音，看一下 VNC 桌面右下角的音量图标，确认输出设备选的是它且没有静音。",
             r.sink_name
         );
     }
@@ -576,9 +672,9 @@ fn describe(r: &AudioReport) -> String {
          手机上的播放器连接 {}:{}（{}Hz / {} 声道）。",
         r.connect_host, r.connect_port, r.rate, r.channels
     );
-    if r.via_relay {
+    if r.via_relay && !r.guest_ip.is_empty() {
         s.push_str(&format!(
-            "\n已自动建立手机端中继，虚拟机地址为 {}:{}。",
+            "\n已通过手机端中继连接，虚拟机地址为 {}:{}。",
             r.guest_ip, r.port
         ));
     }

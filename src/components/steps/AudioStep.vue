@@ -15,7 +15,9 @@ const { audio, audioProgress, busy, serial, setupAudio, detectAudio, openAudioPl
         <code>{{
           audio.hasSpeaker
             ? t("audio.hasSpeaker", { name: audio.sinkName })
-            : t("audio.noSpeaker")
+            : audio.sinkName && audio.sinkName !== "auto_null"
+              ? t("audio.virtualSink", { name: audio.sinkName })
+              : t("audio.noSpeaker")
         }}</code>
       </div>
       <div v-if="!audio.hasSpeaker">
@@ -45,7 +47,7 @@ const { audio, audioProgress, busy, serial, setupAudio, detectAudio, openAudioPl
       </div>
     </div>
     <p v-if="audioProgress" class="lead">{{ audioProgress }}</p>
-    <div class="hintbox">
+    <div v-if="!audio || !audio.hasSpeaker" class="hintbox">
       <strong>{{ t("audio.phoneBox") }}</strong>
       <ul>
         <li>{{ t("audio.step1") }}</li>

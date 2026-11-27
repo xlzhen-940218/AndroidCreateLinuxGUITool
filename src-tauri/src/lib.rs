@@ -582,26 +582,30 @@ pub fn audio_cli(args: &[String]) -> i32 {
         match result {
             Ok(r) => {
                 println!(
-                    "扬声器: {}",
+                    "声卡: {}",
                     if r.has_speaker {
                         format!("有（{}）", r.sink_name)
                     } else {
                         "无（使用串流）".to_string()
                     }
                 );
-                println!("模块就绪: {}", r.module_ready);
                 println!("虚拟机地址: {}:{}", r.guest_ip, r.port);
-                println!(
-                    "播放器连接: {}:{}（{}）",
-                    r.connect_host,
-                    r.connect_port,
-                    if r.via_relay { "手机端中继" } else { "直连" }
-                );
-                println!("手机可连接: {}", r.reachable);
-                println!("播放器已安装: {}", r.player_installed);
-                println!("播放器已打开: {}", r.player_launched);
-                println!("地址已填好: {}", r.prefilled);
-                println!("正在串流: {}", r.streaming);
+                if r.has_speaker {
+                    println!("播放器: 不需要");
+                } else {
+                    println!("模块就绪: {}", r.module_ready);
+                    println!(
+                        "播放器连接: {}:{}（{}）",
+                        r.connect_host,
+                        r.connect_port,
+                        if r.via_relay { "手机端中继" } else { "直连" }
+                    );
+                    println!("手机可连接: {}", r.reachable);
+                    println!("播放器已安装: {}", r.player_installed);
+                    println!("播放器已打开: {}", r.player_launched);
+                    println!("地址已填好: {}", r.prefilled);
+                    println!("正在串流: {}", r.streaming);
+                }
                 println!("{}", r.message);
                 0
             }
