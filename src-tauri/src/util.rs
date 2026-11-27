@@ -1,6 +1,8 @@
 //! 通用工具：工具数据目录、内置资源落盘、打开外部链接。
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, Result};
+#[cfg(windows)]
+use anyhow::bail;
 use std::path::{Path, PathBuf};
 
 /// 工具自己的数据目录（存放解压出来的 adb、TigerVNC Viewer、APK 等）。

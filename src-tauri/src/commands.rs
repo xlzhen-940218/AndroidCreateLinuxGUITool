@@ -409,6 +409,27 @@ pub async fn setup_audio(
         .map_err(|e| e.to_string())
 }
 
+/// 重新打开桌面音频播放器，并把地址与端口填好。
+#[tauri::command]
+pub async fn open_audio_player(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    serial: String,
+    adb_path: Option<String>,
+    host: String,
+    port: u16,
+) -> Result<audio::AudioReport, String> {
+    use tauri::Emitter;
+    let adb = resolve_adb(&state, adb_path, Some(serial)).await?;
+    let handle = app.clone();
+    let mut progress = move |msg: String| {
+        let _ = handle.emit("audio-progress", msg);
+    };
+    audio::open_player(&adb, &host, port, &mut progress)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 截取手机屏幕（PNG），保存到本地并返回文件路径。
 ///
 /// 排查安全弹窗、确认界面状态时非常有用。

@@ -158,7 +158,16 @@ export interface AudioReport {
   moduleReady: boolean;
   /** 桌面在虚拟网络里的地址。 */
   guestIp: string;
+  /** 播放器实际应连接的地址（直连时等于 guestIp，走中继时是 127.0.0.1）。 */
+  connectHost: string;
+  /** 播放器实际应连接的端口。 */
+  connectPort: number;
+  /** 虚拟机内串流模块监听的端口。 */
   port: number;
+  /** 手机侧是否真的能连上串流端口。 */
+  reachable: boolean;
+  /** 是否通过手机端中继连接。 */
+  viaRelay: boolean;
   rate: number;
   channels: number;
   /** 手机上是否已安装音频播放器。 */
@@ -167,6 +176,8 @@ export interface AudioReport {
   playerLaunched: boolean;
   /** 播放器里的地址与端口是否已自动填好。 */
   prefilled: boolean;
+  /** 播放器是否已经开始串流。 */
+  streaming: boolean;
   /** 给用户看的说明。 */
   message: string;
 }

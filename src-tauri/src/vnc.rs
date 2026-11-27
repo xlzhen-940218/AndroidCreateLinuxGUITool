@@ -305,6 +305,9 @@ fn find_installed_viewer() -> Option<PathBuf> {
         candidates.push(PathBuf::from(
             "/Applications/TigerVNC Community Edition.app/Contents/MacOS/vncviewer",
         ));
+        candidates.push(PathBuf::from(
+            "/Applications/VNC Viewer.app/Contents/MacOS/vncviewer",
+        ));
     } else {
         // Linux：Debian/Ubuntu 的 tigervnc-viewer 包同时提供 vncviewer 与 xtigervncviewer
         for p in [
@@ -368,6 +371,37 @@ pub async fn launch_tigervnc_at(
             viewer.to_string_lossy().to_string(),
             format!("启动 TigerVNC Viewer 失败: {}", e),
         )),
+    }
+}
+
+/// 没有 TigerVNC 时可用的系统内置客户端。
+///
+/// macOS 自带「屏幕共享」（Screen Sharing），`open vnc://host:port` 即可直接打开，
+/// 不需要额外安装；代价是没法通过命令行预填密码，首次连接需要手动输入。
+fn system_vnc_client(port: u16, password: &str) -> Option<(bool, String, String)> {
+    #[cfg(target_os = "macos")]
+    {
+        let url = format!("vnc://127.0.0.1:{}", port);
+        return Some(match util::open_url(&url) {
+            Ok(()) => (
+                true,
+                "macOS 屏幕共享（系统内置）".to_string(),
+                format!(
+                    "已用 macOS「屏幕共享」打开 {}。如果提示输入密码，请输入 VNC 密码 {}。",
+                    url, password
+                ),
+            ),
+            Err(e) => (
+                false,
+                "macOS 屏幕共享（系统内置）".to_string(),
+                format!("打开 macOS「屏幕共享」失败：{}", e),
+            ),
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (port, password);
+        None
     }
 }
 
@@ -704,35 +738,32 @@ pub async fn setup_with(
         return Ok(recovered);
     }
 
-    // 解析客户端：内置版本优先，其次系统安装版本。
-    let viewer = match find_tigervnc_viewer() {
-        Some(p) => p,
-        None => {
-            recovered.forward_ok = forward_ok;
-            recovered.forward_detail = forward_detail;
-            recovered.relay_detail = relay_detail;
-            recovered.reachable = true;
-            recovered.probe_detail = probe_detail;
-            recovered.viewer_found = false;
-            recovered.message = format!(
-                "未找到可用的 TigerVNC Viewer。\n{}\n\
-                 也可以先在手机上使用 AVNC 连接（地址 127.0.0.1，端口 {}，密码 {}）。",
-                if cfg!(windows) {
-                    "程序内置的客户端解压失败，也没有在系统里找到已安装版本。"
-                } else {
-                    "请先安装 TigerVNC Viewer（Debian/Ubuntu: sudo apt install tigervnc-viewer）。"
-                },
-                port,
-                password
-            );
-            return Ok(recovered);
-        }
-    };
-
-    // 生成自动认证用的密码文件：查看器用 -passwd 免输入完成 VncAuth。
+    // 解析客户端：内置 / 系统 TigerVNC 优先；macOS 未安装时退回系统「屏幕共享」。
     let passwd_file = write_passwd_file(password).ok();
-    let (launched, viewer_path, msg) =
-        launch_tigervnc_at(&viewer, port, passwd_file.as_deref()).await?;
+    let client = match find_tigervnc_viewer() {
+        Some(viewer) => Some(launch_tigervnc_at(&viewer, port, passwd_file.as_deref()).await?),
+        None => system_vnc_client(port, password),
+    };
+    let Some((launched, viewer_path, msg)) = client else {
+        recovered.forward_ok = forward_ok;
+        recovered.forward_detail = forward_detail;
+        recovered.relay_detail = relay_detail;
+        recovered.reachable = true;
+        recovered.probe_detail = probe_detail;
+        recovered.viewer_found = false;
+        recovered.message = format!(
+            "未找到可用的 TigerVNC Viewer。\n{}\n\
+             也可以先在手机上使用 AVNC 连接（地址 127.0.0.1，端口 {}，密码 {}）。",
+            if cfg!(windows) {
+                "程序内置的客户端解压失败，也没有在系统里找到已安装版本。"
+            } else {
+                "请先安装 TigerVNC Viewer（Debian/Ubuntu: sudo apt install tigervnc-viewer）。"
+            },
+            port,
+            password
+        );
+        return Ok(recovered);
+    };
 
     Ok(VncSetup {
         port,

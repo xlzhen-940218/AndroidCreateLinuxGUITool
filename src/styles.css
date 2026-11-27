@@ -398,6 +398,100 @@ code {
   color: var(--accent);
 }
 
+/* 侧栏分组标题与直达入口 */
+.step-group {
+  margin-bottom: 10px;
+}
+
+.step-group-title {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 12px 4px;
+  font-weight: 600;
+}
+
+.step-badge {
+  margin-left: auto;
+  align-self: center;
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  white-space: nowrap;
+}
+
+.rail-quick {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.14s;
+}
+
+.rail-quick:hover:not(:disabled) {
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+.rail-quick:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.rail-quick-icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+}
+
+.rail-quick-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.rail-quick-text strong {
+  font-size: 13px;
+}
+
+.rail-quick-text em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.quick-remote {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-remote-icon {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
 /* ------------------------------ 面板 ------------------------------ */
 .panel {
   flex: 1 1 auto;

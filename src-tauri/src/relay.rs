@@ -180,6 +180,86 @@ pub async fn device_serves_vnc(adb: &Adb, host: &str, port: u16) -> bool {
     out.contains("RFB")
 }
 
+/// 从手机侧测试某个 TCP 端口能否建立连接（不要求对端先发数据）。
+///
+/// `toybox nc` 连接成功后不会自己退出（会一直读对端数据），必须用
+/// `toybox timeout` 包一层：退出码 0（正常 EOF）或 124（超时）都表示端口可达；
+/// 连接被拒绝时才会立刻返回非 0。
+pub async fn tcp_connect_ok(adb: &Adb, host: &str, port: u16) -> bool {
+    let out = adb
+        .shell(&format!(
+            "toybox timeout 3 toybox nc {host} {port} < /dev/null > /dev/null 2>&1; \
+             code=$?; if [ \"$code\" = 0 ] || [ \"$code\" = 124 ]; then echo 0; else echo 1; fi",
+            host = host,
+            port = port
+        ))
+        .await
+        .unwrap_or_default();
+    out.trim() == "0"
+}
+
+/// 直接在手机上拉起一个监听 `listen_port` 的中继，转发到 `guest_ip:guest_port`。
+///
+/// 不做协议层面的校验，适合音频串流；VNC 请用 [`start_relay`]。
+async fn start_relay_raw(
+    adb: &Adb,
+    listen_port: u16,
+    guest_ip: &str,
+    guest_port: u16,
+) -> Result<()> {
+    stop_relay(adb, listen_port).await;
+    let cmd = format!(
+        "nohup toybox nc -L -p {listen} toybox nc {ip} {guest} \
+         >/dev/null 2>&1 & echo started",
+        listen = listen_port,
+        ip = guest_ip,
+        guest = guest_port
+    );
+    adb.shell(&cmd).await?;
+    Ok(())
+}
+
+/// 给音频串流建一条手机端中继，返回手机实际监听（播放器应连接）的端口。
+///
+/// 优先使用 `base_port`；被占用时依次尝试后面几个端口。每个候选都要
+/// 从手机侧真的连一次 `127.0.0.1:<port>` 才算成功。
+pub async fn open_port_relay(
+    adb: &Adb,
+    base_port: u16,
+    guest_ip: &str,
+    guest_port: u16,
+) -> Result<u16> {
+    for offset in 0..10u16 {
+        let port = base_port.saturating_add(offset);
+        if port == 0 {
+            continue;
+        }
+        if device_listens(adb, port).await {
+            // 可能上一轮已经建好，能连上就直接复用。
+            if tcp_connect_ok(adb, "127.0.0.1", port).await {
+                return Ok(port);
+            }
+            continue;
+        }
+        if start_relay_raw(adb, port, guest_ip, guest_port).await.is_err() {
+            continue;
+        }
+        for _ in 0..12 {
+            if tcp_connect_ok(adb, "127.0.0.1", port).await {
+                return Ok(port);
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        let _ = stop_relay(adb, port).await;
+    }
+    bail!(
+        "手机端的音频中继没有启动成功（{}:{} 之后的端口都被占用或不可用）。",
+        base_port,
+        guest_port
+    )
+}
+
+
 /// 找到真正在监听 `port` 的虚拟机地址。
 ///
 /// 先看邻居表（快），没有再 ping 一遍子网（促使 ARP 更新），最后才逐个试
@@ -247,16 +327,7 @@ pub async fn start_relay(
     guest_ip: &str,
     guest_port: u16,
 ) -> Result<String> {
-    stop_relay(adb, listen_port).await;
-
-    let cmd = format!(
-        "nohup toybox nc -L -p {listen} toybox nc {ip} {guest} \
-         >/dev/null 2>&1 & echo started",
-        listen = listen_port,
-        ip = guest_ip,
-        guest = guest_port
-    );
-    adb.shell(&cmd).await?;
+    start_relay_raw(adb, listen_port, guest_ip, guest_port).await?;
 
     for _ in 0..24 {
         if device_serves_vnc(adb, "127.0.0.1", listen_port).await {

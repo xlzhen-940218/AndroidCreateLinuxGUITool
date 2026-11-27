@@ -55,6 +55,8 @@ export const api = {
     invoke<AudioReport>("detect_audio", { serial, adbPath }),
   setupAudio: (serial: string, adbPath?: string) =>
     invoke<AudioReport>("setup_audio", { serial, adbPath }),
+  openAudioPlayer: (serial: string, host: string, port: number, adbPath?: string) =>
+    invoke<AudioReport>("open_audio_player", { serial, host, port, adbPath }),
   captureScreen: (serial: string, adbPath?: string) =>
     invoke<string>("capture_screen", { serial, adbPath }),
   openExternal: (url: string) => invoke<void>("open_external", { url }),

@@ -550,6 +550,69 @@ pub fn port_cli(args: &[String]) -> i32 {
     })
 }
 
+/// 命令行音频模式：检测或配置桌面音频串流。
+///
+/// 用法：`AndroidCreateLinuxGUITool.exe --audio [--detect-only]`
+pub fn audio_cli(args: &[String]) -> i32 {
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("[错误] 无法创建异步运行时: {}", e);
+            return 1;
+        }
+    };
+    rt.block_on(async {
+        let adb = match connect_device().await {
+            Ok(a) => a,
+            Err(e) => {
+                eprintln!("[错误] {}", e);
+                return 2;
+            }
+        };
+        println!("设备: {}", adb.serial().unwrap_or(""));
+        let detect_only = args.iter().any(|a| a == "--detect-only");
+
+        let mut progress = |msg: String| println!("  {}", msg);
+        let result = if detect_only {
+            crate::audio::detect(&adb).await
+        } else {
+            crate::audio::setup(&adb, &mut progress).await
+        };
+
+        match result {
+            Ok(r) => {
+                println!(
+                    "扬声器: {}",
+                    if r.has_speaker {
+                        format!("有（{}）", r.sink_name)
+                    } else {
+                        "无（使用串流）".to_string()
+                    }
+                );
+                println!("模块就绪: {}", r.module_ready);
+                println!("虚拟机地址: {}:{}", r.guest_ip, r.port);
+                println!(
+                    "播放器连接: {}:{}（{}）",
+                    r.connect_host,
+                    r.connect_port,
+                    if r.via_relay { "手机端中继" } else { "直连" }
+                );
+                println!("手机可连接: {}", r.reachable);
+                println!("播放器已安装: {}", r.player_installed);
+                println!("播放器已打开: {}", r.player_launched);
+                println!("地址已填好: {}", r.prefilled);
+                println!("正在串流: {}", r.streaming);
+                println!("{}", r.message);
+                0
+            }
+            Err(e) => {
+                eprintln!("[错误] {}", e);
+                5
+            }
+        }
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -577,6 +640,7 @@ pub fn run() {
             commands::install_avnc,
             commands::detect_audio,
             commands::setup_audio,
+            commands::open_audio_player,
             commands::capture_screen,
             commands::open_external,
         ])

@@ -1,13 +1,13 @@
 # AndroidCreateLinuxGUITool
 
 Turn an Android 16+ phone that supports **AVF (Android Virtualization Framework)** into a usable Debian desktop —
-with a Windows or Linux GUI that drives everything over ADB. No commands typed on the phone.
+with a Windows, Linux or macOS GUI that drives everything over ADB. No commands typed on the phone.
 
 **English** | [简体中文](README.zh-CN.md)
 
 ![Main window](docs/images/gui-main.png)
 
-<p align="center"><em>11-step workflow: device detection → Linux VM → system base → desktop → apps → VNC → remote desktop → audio</em></p>
+<p align="center"><em>11-step workflow: device detection → Linux VM → system base → desktop → apps → VNC → audio → remote desktop (one-click shortcut)</em></p>
 
 ![Install progress](docs/images/gui-installing.png)
 
@@ -15,10 +15,10 @@ with a Windows or Linux GUI that drives everything over ADB. No commands typed o
 
 ## Highlights
 
-- **11 guided steps** — adb detection, device check, AVF check, Linux developer environment, system image, four independent install stages, a remote desktop launcher and an optional desktop-audio step.
+- **11 guided steps** (grouped as Prepare / Install / Use) — adb detection, device check, AVF check, Linux developer environment, system image, four independent install stages, desktop audio and the remote desktop. Remote desktop is always last and has one-click shortcuts in the top bar and sidebar.
 - **Fully automatic install** — opens the Linux development environment switch (English and Chinese system UI), installs the Terminal image when needed, and runs an idempotent setup script inside the VM.
 - **4 separate install stages** — system base / desktop / common apps / VNC service. If one stage fails you only rerun that stage; dpkg interrupted states are repaired automatically.
-- **Offline-ready bundled assets** — on Windows, adb and the TigerVNC viewer ship inside the app; the AVNC APK is bundled on every platform, so nothing has to be downloaded behind a firewall. On Linux the app uses the distro `adb` and `tigervnc-viewer` packages (declared as deb dependencies).
+- **Offline-ready bundled assets** — on Windows, adb and the TigerVNC viewer ship inside the app; the AVNC APK is bundled on every platform, so nothing has to be downloaded behind a firewall. On Linux the app uses the distro `adb` and `tigervnc-viewer` packages (declared as deb dependencies); on macOS it uses the system `adb` (Homebrew / Android SDK) and falls back to the built-in Screen Sharing app when TigerVNC is not installed.
 - **7 UI languages** (Chinese, English, German, French, Spanish, Japanese, Korean) and 3 themes (light blue, light pink, near-black).
 - **Real-time progress, no screen scraping** — the script writes markers into a log file in the shared folder; the PC polls it over adb.
 
@@ -47,16 +47,17 @@ executes it in the Terminal app. Progress (`@@STEP:` / `@@RESULT:`) and failures
 | 7 | Desktop environment | Installs the desktop you pick: XFCE (default), GNOME, KDE Plasma, MATE, Cinnamon, LXQt, LXDE, GNOME Flashback |
 | 8 | Common apps | Optional app suite and the Fcitx5 Chinese input method |
 | 9 | VNC service | Installs and configures TigerVNC, writes the password file, starts the `acl-vnc.service` session on a dedicated display (`:2`+, so it never competes with the Terminal's Weston/Xwayland `:1`) on port 5901, and verifies the desktop session actually took over |
-| 10 | Remote desktop | Starts the phone-side relay, runs `adb forward`, verifies the VNC password handshake, opens the TigerVNC viewer (bundled on Windows, `tigervnc-viewer` on Linux), and can install AVNC on the phone. If the VNC service was stopped, it is restarted automatically |
-| 11 | Desktop audio | Detects whether the VM has a real speaker; otherwise configures PulseAudio streaming and installs the Simple Protocol Player on the phone |
+| 10 | Desktop audio | Detects whether the VM has a real speaker; otherwise configures PulseAudio streaming, adds a phone-side relay when needed, and installs the Simple Protocol Player on the phone |
+| 11 | Remote desktop (shortcut) | Starts the phone-side relay, runs `adb forward`, verifies the VNC password handshake, opens the viewer (bundled TigerVNC on Windows, system package on Linux, macOS Screen Sharing by default), and can install AVNC on the phone. If the VNC service was stopped, it is restarted automatically |
 
 Stages 6–9 are the old single "install desktop" step, split so each one is short, restartable and easy to debug.
 
 ## Requirements
 
-- Windows 10/11, or Linux (built and tested on Debian 13; `amd64` and `arm64` deb packages are provided)
+- Windows 10/11, Linux (built and tested on Debian 13; `amd64` and `arm64` deb packages are provided), or macOS 10.15+
 - On Windows, Android Platform Tools are **not** required — a working `adb` is bundled, but you can point the tool at your own `adb.exe`
 - On Linux, install `adb` and `tigervnc-viewer`; the deb pulls both in automatically (`sudo apt install adb tigervnc-viewer` for source builds)
+- On macOS, install `adb` with `brew install --cask android-platform-tools`; the built-in Screen Sharing app is used for VNC, so TigerVNC is optional
 - Phone: Android 16+, AVF capable, USB debugging enabled
 - Phone must stay **unlocked and awake** while installing: command injection relies on the soft keyboard, and a locked screen silently drops input
 - ~2 GB of free space on the phone for Debian packages
@@ -70,6 +71,7 @@ Stages 6–9 are the old single "install desktop" step, split so each one is sho
    - Linux: `sudo apt install ./release/deb/AndroidCreateLinuxGUITool_0.1.0_amd64.deb`
      (use the `arm64` package on ARM machines), then start **AndroidCreateLinuxGUITool** from the app menu
      or run `android-create-linux-gui-tool`
+   - macOS: open the dmg under `src-tauri/target/release/bundle/dmg/` and drag the app into Applications
 
 3. Walk through the steps on the left; each step unlocks the next one.
 
@@ -83,12 +85,19 @@ locale and input method; choosing "no" keeps the official Debian sources and an 
 - Defaults: VNC password `linux`, fixed VNC port `5901`, geometry `1920x1080`, SSH port `10022`.
   The VNC X server picks a free display starting at `:2`; display `:1` is left to the Terminal's own desktop.
 
-### Step 10 notes
+### Steps 10–11 notes
 
-- "Allow port and open TigerVNC" first checks whether port 5901 is already served, otherwise starts a phone-side
+- **Desktop audio:** if the VM has a real speaker, nothing needs to be done. Otherwise the tool loads
+  `module-simple-protocol-tcp`, writes it to `default.pa`, installs/opens Simple Protocol Player, fills in
+  the address and starts streaming automatically. If the phone cannot reach the VM directly, a phone-side
+  `nc` relay is created automatically (the player then connects to `127.0.0.1`). On later runs it probes
+  whether port 12345 is already delivering PCM and skips the VM terminal entirely — usually under two seconds.
+- **Remote desktop:** the top bar and sidebar both have a shortcut that jumps straight to this step and connects
+  immediately. "Allow port and open TigerVNC" first checks whether port 5901 is already served, otherwise starts a phone-side
   `nc` relay on a separate phone port (for example 15901) and maps PC `5901` to it with `adb forward`. This bypasses
   stale Terminal forwards such as the "listening but not forwarding" socket seen on Redmi K Pad.
-  It then performs a real VncAuth handshake and starts the TigerVNC viewer (bundled on Windows, system package on Linux) with the address and password pre-filled.
+  It then performs a real VncAuth handshake and starts the viewer (bundled on Windows, system package on Linux,
+  macOS Screen Sharing by default) with the address and password pre-filled.
 - If the VNC service was stopped (for example after a VM restart), the tool restarts `acl-vnc.service` and retries.
   If it cannot, it tells you to unlock the phone and rerun the "VNC service" step.
 - "Install AVNC" uses the bundled AVNC APK first and only falls back to GitHub if that fails.
@@ -113,6 +122,23 @@ cargo build --release --features custom-protocol
 ```
 
 Output: `src-tauri/target/release/android-create-linux-gui-tool.exe`.
+
+### macOS
+
+Prerequisites: Node.js 18+, stable Rust and the Xcode Command Line Tools.
+
+```bash
+xcode-select --install   # if not installed yet
+npm install
+npm run tauri:build
+```
+
+Output: `src-tauri/target/release/bundle/dmg/AndroidCreateLinuxGUITool_0.1.0_<arch>.dmg`
+plus a ready-to-run `.app`. Unsigned builds need to be allowed once under
+System Settings → Privacy & Security.
+
+macOS bundling settings (dmg, minimum system version, app category) live in
+[`src-tauri/tauri.macos.conf.json`](src-tauri/tauri.macos.conf.json).
 
 ### Linux (deb)
 
@@ -159,6 +185,7 @@ before building the x64 package again. Prebuilt packages live in `release/deb/`.
 | `--official-source` | With `--install`: Debian official sources + English locale |
 | `--no-apps` | With `--install`: skip the common app suite |
 | `--port=5901` | Establish the phone relay + `adb forward`, verify VNC auth, and open the TigerVNC viewer |
+| `--audio` | Detect and configure desktop audio streaming (`--audio --detect-only` only inspects) |
 | `--exec="<command>"` | Run one command in the VM terminal and read the output |
 
 ```powershell
@@ -168,22 +195,29 @@ before building the x64 package again. Prebuilt packages live in `release/deb/`.
 ```
 
 On Linux the same binary is installed as `android-create-linux-gui-tool`; use `./android-create-linux-gui-tool --diagnose`
-or `/usr/bin/android-create-linux-gui-tool --install --stage=base`.
+or `/usr/bin/android-create-linux-gui-tool --install --stage=base`. On macOS run the binary inside
+`AndroidCreateLinuxGUITool.app/Contents/MacOS/`.
 
 ## Project structure
 
 ```text
 ├─ src/                        # Vue 3 frontend
-│  ├─ App.vue                  # 11-step workflow UI
+│  ├─ App.vue                  # layout: top bar / rail / current step / log
+│  ├─ store.ts                 # global state and actions
 │  ├─ api.ts                   # Tauri commands / events
 │  ├─ i18n.ts                  # 7 UI languages
 │  ├─ types.ts                 # shared types
-│  └─ components/              # log panel, modal dialog
+│  └─ components/
+│     ├─ TopBar.vue            # top bar + remote-desktop shortcut
+│     ├─ StepRail.vue          # grouped step navigation
+│     ├─ steps/                # one component per step
+│     ├─ LogPanel.vue          # live log
+│     └─ ModalDialog.vue       # modal dialog
 ├─ src-tauri/
 │  ├─ src/
 │  │  ├─ adb.rs                # adb wrapper (locate, shell, push, forward)
 │  │  ├─ apk.rs                # bundled APK install / launch / query
-│  │  ├─ audio.rs              # desktop audio detection and streaming setup
+│  │  ├─ audio.rs              # desktop audio detection, streaming and phone relay
 │  │  ├─ detect.rs             # device and AVF detection
 │  │  ├─ devopts.rs            # developer options / Linux environment switch
 │  │  ├─ disk.rs               # VM disk resizing
@@ -209,6 +243,7 @@ or `/usr/bin/android-create-linux-gui-tool --install --stage=base`.
 
 Linux bundling settings (deb target and runtime dependencies) live in
 [`src-tauri/tauri.linux.conf.json`](src-tauri/tauri.linux.conf.json) and are merged automatically on Linux builds.
+macOS settings live in [`src-tauri/tauri.macos.conf.json`](src-tauri/tauri.macos.conf.json).
 
 ## Troubleshooting
 
@@ -240,6 +275,14 @@ the tool at another binary in step 1.
 **Linux: remote desktop cannot find a viewer**
 Install TigerVNC: `sudo apt install tigervnc-viewer`. The tool looks for `vncviewer` / `xtigervncviewer` in
 `/usr/bin`, `/usr/local/bin`, `/snap/bin` and the Flatpak export directory.
+
+**macOS: "adb executable not found"**
+Run `brew install --cask android-platform-tools`, or install Android Studio / Android SDK Platform Tools.
+The tool checks `/opt/homebrew/bin`, `/usr/local/bin` and `~/Library/Android/sdk/platform-tools` automatically.
+
+**macOS: no TigerVNC installed**
+Nothing to install: the tool opens the built-in Screen Sharing app (`vnc://127.0.0.1:5901`).
+If it asks for a password, use the VNC password from step 9. When TigerVNC is installed it is preferred and the password is filled in automatically.
 
 ## Disclaimer
 

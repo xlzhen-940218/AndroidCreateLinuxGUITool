@@ -1,13 +1,13 @@
 # AndroidCreateLinuxGUITool
 
 在支持 **AVF（Android 虚拟化框架）的 Android 16+ 手机**上一键装好 Debian 桌面环境，
-并用 Windows / Linux 图形界面全程遥控，不需要在手机上手动敲命令。
+并用 Windows / Linux / macOS 图形界面全程遥控，不需要在手机上手动敲命令。
 
 [English](README.md) | **简体中文**
 
 ![主界面](docs/images/gui-main.png)
 
-<p align="center"><em>11 步工作流：设备检测 → Linux 虚拟机 → 系统基础 → 桌面环境 → 常用软件 → VNC 服务 → 远程桌面 → 桌面音频</em></p>
+<p align="center"><em>11 步工作流：设备检测 → Linux 虚拟机 → 系统基础 → 桌面环境 → 常用软件 → VNC 服务 → 桌面音频 → 远程桌面（可一键直达）</em></p>
 
 ![安装进度](docs/images/gui-installing.png)
 
@@ -15,10 +15,10 @@
 
 ## 功能亮点
 
-- **11 个引导步骤**：adb 检测、设备检测、AVF 检测、Linux 开发环境、系统镜像，随后是 4 个独立的安装阶段、远程桌面和桌面音频。
+- **11 个引导步骤**（侧栏按「准备 / 安装 / 使用」分组）：adb 检测、设备检测、AVF 检测、Linux 开发环境、系统镜像，随后是 4 个独立的安装阶段、桌面音频和远程桌面；远程桌面固定在最后，顶栏与侧栏都有一键直达入口。
 - **全自动安装**：自动打开开发者选项里的「Linux 开发环境」开关（兼容中英文系统界面），必要时自动安装 Terminal 系统镜像，并在虚拟机内执行幂等安装脚本。
 - **4 个独立安装阶段**：「系统基础 / 桌面环境 / 常用软件 / VNC 服务」分开执行，某一步失败只需重跑该步骤；上次中断留下的 dpkg 异常会自动修复。
-- **离线可用**：Windows 版内置 adb 与 TigerVNC 查看器，AVNC 安装包所有平台都内置，网络受限时也能用；Linux 版使用发行版的 `adb` 与 `tigervnc-viewer`（已写进 deb 依赖）。
+- **离线可用**：Windows 版内置 adb 与 TigerVNC 查看器，AVNC 安装包所有平台都内置，网络受限时也能用；Linux 版使用发行版的 `adb` 与 `tigervnc-viewer`（已写进 deb 依赖）；macOS 版使用系统 `adb`（Homebrew / Android SDK），未安装 TigerVNC 时自动调用系统「屏幕共享」。
 - **7 种界面语言**（中、英、德、法、西、日、韩）与 3 套主题（浅蓝、浅粉、黑夜）。
 - **真实进度回传**：脚本把标记写入共享目录的日志，PC 端通过 adb 轮询读取，无需识别屏幕。
 
@@ -46,16 +46,17 @@ Windows / Linux 图形界面 ──adb push──▶ 手机共享存储 ──vi
 | 7 | 桌面环境 | 安装所选桌面：XFCE（默认）、GNOME、KDE Plasma、MATE、Cinnamon、LXQt、LXDE、GNOME Flashback |
 | 8 | 常用软件 | 可选安装常用软件套件与 Fcitx5 中文输入法 |
 | 9 | VNC 服务 | 安装配置 TigerVNC、生成密码文件、在**独立显示号**（从 `:2` 起，避免和 Terminal 自带的 Weston/Xwayland `:1` 抢占）上启动 `acl-vnc.service`（端口 5901），并校验桌面会话确实接管 |
-| 10 | 远程桌面 | 建立手机端中继、`adb forward`、完成 VNC 密码握手、打开 TigerVNC 查看器（Windows 内置，Linux 使用系统包）；VNC 服务没起来时会自动重启；也可为手机安装 AVNC |
-| 11 | 桌面音频 | 检测虚拟机是否有真实扬声器；没有则配置 PulseAudio 串流，并在手机上安装 Simple Protocol Player |
+| 10 | 桌面音频 | 检测虚拟机是否有真实扬声器；没有则配置 PulseAudio 串流，必要时自动建立手机端中继，并在手机上安装 Simple Protocol Player |
+| 11 | 远程桌面（可直达） | 建立手机端中继、`adb forward`、完成 VNC 密码握手，打开 TigerVNC 查看器（Windows 内置、Linux 使用系统包、macOS 用系统「屏幕共享」）；VNC 服务没起来时会自动重启；也可为手机安装 AVNC |
 
 第 6–9 步就是原来单一的「安装桌面环境」，拆开之后每一步都更短、可单独重跑、也更容易定位问题。
 
 ## 环境要求
 
-- Windows 10/11，或 Linux（在 Debian 13 上构建和验证，提供 `amd64` 与 `arm64` 两种 deb 包）
+- Windows 10/11、Linux（在 Debian 13 上构建和验证，提供 `amd64` 与 `arm64` 两种 deb 包），或 macOS 10.15+
 - Windows 版不需要单独安装 Android Platform Tools：工具内置 `adb`，也可指定自己的 `adb.exe`
 - Linux 版需要 `adb` 与 `tigervnc-viewer`：deb 依赖已自动拉取；从源码运行时执行 `sudo apt install adb tigervnc-viewer`
+- macOS 版需要 `adb`：`brew install --cask android-platform-tools`；远程桌面可直接使用系统「屏幕共享」，无需额外安装 TigerVNC
 - 手机：Android 16+，支持 AVF，已开启 USB 调试
 - 安装时手机需保持**亮屏、解锁**：自动输入依赖软键盘，锁屏会让输入被系统丢弃
 - 手机至少预留约 2 GB 存储空间
@@ -69,6 +70,7 @@ Windows / Linux 图形界面 ──adb push──▶ 手机共享存储 ──vi
    - Linux：`sudo apt install ./release/deb/AndroidCreateLinuxGUITool_0.1.0_amd64.deb`
      （ARM 机器改用 `arm64` 包），然后从应用菜单启动 **AndroidCreateLinuxGUITool**，
      或直接运行 `android-create-linux-gui-tool`
+   - macOS：打开 `src-tauri/target/release/bundle/dmg/` 里的 dmg，把应用拖进「应用程序」后启动
 
 3. 按左侧步骤依次操作，每一步完成后自动解锁下一步。
 
@@ -81,12 +83,24 @@ Windows / Linux 图形界面 ──adb push──▶ 手机共享存储 ──vi
 - 默认参数：VNC 密码 `linux`，固定端口 `5901`，分辨率 `1920x1080`，SSH 端口 `10022`。
   VNC 的 X 显示号从 `:2` 起自动挑选，`:1` 留给 Terminal 自带的桌面。
 
-### 第 10 步说明
+### 第 10 步说明（桌面音频）
 
+- 虚拟机里已有真实扬声器时，桌面声音直接由手机播放，工具只会做检测。
+- 没有扬声器时，工具会启动 PulseAudio 并把 `module-simple-protocol-tcp` 写入 `default.pa`，
+  然后安装并打开 Simple Protocol Player，自动填好地址与端口并开始串流。
+- 如果手机无法直连虚拟机的音频端口，工具会自动在手机上建立 `nc` 中继，让播放器改连
+  `127.0.0.1`，不需要手动处理网络。后续想再听一次时，点「打开播放器」即可。
+- 第二次使用时会先直接探测 12345 端口是否已经在输出 PCM；是的话完全跳过虚拟机终端，
+  通常 2 秒内就能确认状态。
+
+### 第 11 步说明（远程桌面）
+
+- 顶栏和侧栏都有「远程桌面」直达入口：手机已连接时会直接切到本步骤并立刻建立连接，
+  不需要再逐项检测。
 - 「放行端口并打开 TigerVNC」会先检查 5901 是否已经可用；否则在手机端用一个独立端口（例如 15901）启动 `nc` 中继，
   再用 `adb forward` 把 PC 的 `5901` 指过去。这样能绕过 Redmi K Pad 上 Terminal 留下的
   “只监听、不转发”的僵尸 5901。随后完整校验一次 VNC 密码握手，最后打开 TigerVNC 查看器
-  （Windows 内置、Linux 使用系统包）并填好地址与密码。
+  （Windows 内置、Linux 使用系统包、macOS 使用系统「屏幕共享」）并填好地址与密码。
 - 虚拟机重启后如果 VNC 服务没在运行，工具会自动重启 `acl-vnc.service` 再重试；如果自动启动失败，
   会提示你解锁手机、打开 Terminal 后重跑「TigerVNC 服务」步骤。
 - 「安装 AVNC」优先使用内置 APK，失败才回退到 GitHub 下载；连接参数为 `127.0.0.1:5901` 与第 9 步设置的 VNC 密码（用户名可留空，填 `droid` 亦可）。
@@ -110,6 +124,23 @@ cargo build --release --features custom-protocol
 ```
 
 产物位于 `src-tauri/target/release/android-create-linux-gui-tool.exe`。
+
+### macOS
+
+前置：Node.js 18+、Rust（stable）与 Xcode Command Line Tools。
+
+```bash
+xcode-select --install   # 若尚未安装
+npm install
+npm run tauri:build
+```
+
+产物位于 `src-tauri/target/release/bundle/dmg/AndroidCreateLinuxGUITool_0.1.0_<arch>.dmg`，
+同时也生成了可直接运行的 `.app`。未做代码签名时，首次打开需要在
+「系统设置 → 隐私与安全性」里允许。
+
+macOS 打包配置（dmg、最低系统版本、应用分类）位于
+[`src-tauri/tauri.macos.conf.json`](src-tauri/tauri.macos.conf.json)。
 
 ### Linux（deb）
 
@@ -156,6 +187,7 @@ npm run tauri:build -- --target aarch64-unknown-linux-gnu --bundles deb
 | `--official-source` | 配合 `--install` 使用官方源与英文环境 |
 | `--no-apps` | 配合 `--install` 跳过常用软件套件 |
 | `--port=5901` | 建立手机端中继 + `adb forward`、校验 VNC 密码握手并打开 TigerVNC 查看器 |
+| `--audio` | 检测并配置桌面音频串流（`--audio --detect-only` 只检测，不改动系统） |
 | `--exec="<命令>"` | 在虚拟机终端执行一条命令并取回输出 |
 
 ```powershell
@@ -171,16 +203,22 @@ Linux 上可执行文件名为 `android-create-linux-gui-tool`，例如 `./andro
 
 ```text
 ├─ src/                        # 前端（Vue 3）
-│  ├─ App.vue                  # 11 步工作流主界面
+│  ├─ App.vue                  # 整体布局：顶栏 / 侧栏 / 当前步骤 / 日志
+│  ├─ store.ts                 # 全局状态与各步骤操作
 │  ├─ api.ts                   # Tauri command / 事件封装
 │  ├─ i18n.ts                  # 7 种界面语言
 │  ├─ types.ts                 # 前后端共享类型
-│  └─ components/              # 日志面板、模态弹窗
+│  └─ components/
+│     ├─ TopBar.vue            # 顶栏与远程桌面直达入口
+│     ├─ StepRail.vue          # 按「准备 / 安装 / 使用」分组的步骤导航
+│     ├─ steps/                # 每个步骤一个组件
+│     ├─ LogPanel.vue          # 实时日志
+│     └─ ModalDialog.vue       # 模态弹窗
 ├─ src-tauri/
 │  ├─ src/
 │  │  ├─ adb.rs                # adb 封装（定位、shell、push、forward）
 │  │  ├─ apk.rs                # 内置 APK 的安装 / 启动 / 查询
-│  │  ├─ audio.rs              # 桌面音频检测与串流配置
+│  │  ├─ audio.rs              # 桌面音频检测、串流配置与手机端中继
 │  │  ├─ detect.rs             # 设备与 AVF 检测
 │  │  ├─ devopts.rs            # 开发者选项 / Linux 开发环境开关
 │  │  ├─ disk.rs               # 虚拟机磁盘扩容
@@ -205,7 +243,8 @@ Linux 上可执行文件名为 `android-create-linux-gui-tool`，例如 `./andro
 ```
 
 Linux 打包配置（deb 目标与运行时依赖）位于
-[`src-tauri/tauri.linux.conf.json`](src-tauri/tauri.linux.conf.json)，构建 Linux 版本时自动合并。
+[`src-tauri/tauri.linux.conf.json`](src-tauri/tauri.linux.conf.json)，构建 Linux 版本时自动合并；
+macOS 打包配置位于 [`src-tauri/tauri.macos.conf.json`](src-tauri/tauri.macos.conf.json)。
 
 ## 常见问题
 
@@ -233,6 +272,14 @@ Linux 版不内置 adb，执行 `sudo apt install adb` 即可（deb 本身已声
 **Linux 找不到远程桌面客户端**
 执行 `sudo apt install tigervnc-viewer`。工具会在 `/usr/bin`、`/usr/local/bin`、`/snap/bin` 与 Flatpak 导出目录中
 查找 `vncviewer` / `xtigervncviewer`。
+
+**macOS 提示「未找到 adb 可执行文件」**
+执行 `brew install --cask android-platform-tools`，或安装 Android Studio / Android SDK Platform Tools；
+工具会自动查找 `/opt/homebrew/bin`、`/usr/local/bin` 与 `~/Library/Android/sdk/platform-tools`。
+
+**macOS 没有安装 TigerVNC**
+不需要额外安装：工具会调用系统自带的「屏幕共享」（`vnc://127.0.0.1:5901`）。
+首次连接如果弹出密码框，输入第 9 步设置的 VNC 密码即可；安装了 TigerVNC 时会优先使用它并自动填好密码。
 
 ## 免责声明
 

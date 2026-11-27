@@ -213,6 +213,23 @@ impl Adb {
             }
         }
 
+        // macOS：Homebrew（Intel / Apple Silicon）与 Android Studio 的 SDK 安装位置
+        #[cfg(target_os = "macos")]
+        {
+            for p in [
+                "/opt/homebrew/bin/adb",
+                "/usr/local/bin/adb",
+                "/opt/homebrew/share/android-commandlinetools/platform-tools/adb",
+                "/usr/local/share/android-commandlinetools/platform-tools/adb",
+                "/Applications/Android Studio.app/Contents/sdk/platform-tools/adb",
+            ] {
+                candidates.push(PathBuf::from(p));
+            }
+            if let Some(home) = std::env::var_os("HOME") {
+                candidates.push(PathBuf::from(home).join("Library/Android/sdk/platform-tools/adb"));
+            }
+        }
+
         for cand in candidates {
             if cand.is_file() {
                 return Ok(cand);
@@ -223,6 +240,11 @@ impl Adb {
             bail!(
                 "未找到 adb 可执行文件。请安装 Android Platform Tools 并加入 PATH，\
                  或在设置中手动指定 adb.exe 的完整路径。"
+            );
+        } else if cfg!(target_os = "macos") {
+            bail!(
+                "未找到 adb 可执行文件。请执行 `brew install --cask android-platform-tools`，\
+                 或安装 Android SDK Platform Tools，然后在设置中手动指定 adb 的完整路径。"
             );
         } else {
             bail!(

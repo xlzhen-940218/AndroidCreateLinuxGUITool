@@ -79,6 +79,11 @@ fn main() {
         attach_parent_console();
         std::process::exit(acl_tool_lib::port_cli(&args));
     }
+    // 命令行音频模式：检测 / 配置桌面音频串流
+    if args.iter().any(|a| a == "--audio") {
+        attach_parent_console();
+        std::process::exit(acl_tool_lib::audio_cli(&args));
+    }
     // 命令行磁盘模式：把虚拟机磁盘调整到指定容量（GB）
     if args.iter().any(|a| a.starts_with("--disk=")) {
         attach_parent_console();
